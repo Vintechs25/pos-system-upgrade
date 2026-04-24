@@ -433,6 +433,28 @@ export function POSScreen() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Mobile cart FAB */}
+      {cartCount > 0 && (
+        <button
+          onClick={() => setMobileCartOpen(true)}
+          className="lg:hidden fixed bottom-20 right-4 z-30 flex items-center gap-2 rounded-full bg-accent text-accent-foreground px-5 py-3 shadow-[var(--shadow-elevated)] font-bold active:scale-95 transition-transform"
+        >
+          <ShoppingBag className="h-5 w-5" />
+          <span className="text-sm">{cartCount}</span>
+          <span className="text-sm border-l border-accent-foreground/30 pl-2">
+            {formatKsh(total)}
+          </span>
+        </button>
+      )}
+
+      {/* Mobile cart sheet */}
+      <Sheet open={mobileCartOpen} onOpenChange={setMobileCartOpen}>
+        <SheetContent side="right" className="lg:hidden p-0 w-full sm:max-w-md flex flex-col">
+          <SheetTitle className="sr-only">Current Sale</SheetTitle>
+          {cartPanel}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
