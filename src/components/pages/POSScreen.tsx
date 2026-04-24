@@ -282,8 +282,8 @@ export function POSScreen() {
 
 
       {/* PRODUCT GRID — right */}
-      <section className="flex-1 flex flex-col bg-background overflow-hidden">
-        <div className="border-b border-border p-4 space-y-3 bg-card">
+      <section className="flex-1 flex flex-col bg-background lg:overflow-hidden">
+        <div className="sticky top-14 md:top-0 z-10 border-b border-border p-3 md:p-4 space-y-3 bg-card">{/* mobile-friendly sticky search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
