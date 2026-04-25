@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 type ServerFn<TInput, TOutput> = (args: {
   data: TInput;
   headers?: HeadersInit;
-  fetch?: (url: string, init: RequestInit) => Promise<Response>;
+  fetch?: typeof fetch;
 }) => Promise<TOutput>;
 
 export async function callWithAuth<TInput, TOutput>(
@@ -19,10 +19,10 @@ export async function callWithAuth<TInput, TOutput>(
   const token = sess.session?.access_token;
   if (!token) throw new Error("You must be signed in.");
   const authorization = `Bearer ${token}`;
-  const fetchWithAuth = async (url: string, init: RequestInit) => {
+  const fetchWithAuth: typeof fetch = async (input, init = {}) => {
     const headers = new Headers(init.headers);
     headers.set("authorization", authorization);
-    return fetch(url, { ...init, headers });
+    return fetch(input, { ...init, headers });
   };
   try {
     return await fn({
