@@ -17,8 +17,23 @@ export async function callWithAuth<TInput, TOutput>(
   const { data: sess } = await supabase.auth.getSession();
   const token = sess.session?.access_token;
   if (!token) throw new Error("You must be signed in.");
-  return fn({
-    data,
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  try {
+    return await fn({
+      data,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch (err) {
+    // The auth middleware throws a `Response` on failure, which surfaces as
+    // "[object Response]" by default. Extract the real message from it.
+    if (err instanceof Response) {
+      let body = "";
+      try {
+        body = await err.text();
+      } catch {
+        body = "";
+      }
+      throw new Error(body || `Server error (${err.status})`);
+    }
+    throw err;
+  }
 }
