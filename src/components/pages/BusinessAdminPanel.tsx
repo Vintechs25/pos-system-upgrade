@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
-import { useServerFn } from "@tanstack/react-start";
 import { provisionStaff } from "@/server/business-provisioning.functions";
+import { callWithAuth } from "@/lib/server-fn-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,7 +46,6 @@ interface StaffRow {
 
 export function BusinessAdminPanel() {
   const { activeBusinessId, businesses } = useAuth();
-  const provisionStaffFn = useServerFn(provisionStaff);
   const business = businesses.find((b) => b.id === activeBusinessId);
 
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -135,15 +134,13 @@ export function BusinessAdminPanel() {
     }
     setBusy(true);
     try {
-      await provisionStaffFn({
-        data: {
-          businessId: activeBusinessId,
-          branchId: staffBranch || null,
-          email: staffEmail.trim(),
-          password: staffPassword,
-          fullName: staffName.trim(),
-          role: staffRole,
-        },
+      await callWithAuth(provisionStaff, {
+        businessId: activeBusinessId,
+        branchId: staffBranch || null,
+        email: staffEmail.trim(),
+        password: staffPassword,
+        fullName: staffName.trim(),
+        role: staffRole,
       });
       toast.success("Staff account created");
       setStaffResult({ email: staffEmail.trim(), password: staffPassword });
