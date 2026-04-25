@@ -17,8 +17,12 @@ import {
   Receipt,
   CheckCircle2,
   ShoppingBag,
+  Printer,
+  Download,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { useAuth } from "@/lib/auth-context";
+import { printReceipt, downloadReceiptPDF } from "@/lib/receipt";
 import { TimberSaleDialog } from "@/components/pos/TimberSaleDialog";
 import {
   Dialog,
