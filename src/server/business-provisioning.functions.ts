@@ -8,6 +8,25 @@ const AuthPayloadSchema = z.object({
   __authToken: z.string().min(1),
 });
 
+async function getAuthContext(payload: z.infer<typeof AuthPayloadSchema>) {
+  const { __authToken } = AuthPayloadSchema.parse(payload);
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY;
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Missing backend authentication configuration.");
+  }
+
+  const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
+    global: { headers: { Authorization: `Bearer ${__authToken}` } },
+    auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
+  });
+
+  const { data, error } = await supabase.auth.getClaims(__authToken);
+  if (error || !data?.claims?.sub) throw new Error("Unauthorized: Invalid session.");
+
+  return { supabase, userId: data.claims.sub, claims: data.claims };
+}
+
 const ProvisionSchema = z.object({
   __authToken: z.string().min(1),
   businessName: z.string().min(1).max(120),
