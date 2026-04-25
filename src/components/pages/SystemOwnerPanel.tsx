@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useServerFn } from "@tanstack/react-start";
 import { provisionBusiness } from "@/server/business-provisioning.functions";
+import { callWithAuth } from "@/lib/server-fn-auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,7 +53,6 @@ interface Business {
 
 export function SystemOwnerPanel() {
   const { refresh } = useAuth();
-  const provisionFn = useServerFn(provisionBusiness);
 
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,17 +109,15 @@ export function SystemOwnerPanel() {
     }
     setBusy(true);
     try {
-      const res = await provisionFn({
-        data: {
-          businessName: name.trim(),
-          slug: slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-"),
-          ownerEmail: ownerEmail.trim(),
-          ownerPassword,
-          ownerFullName: ownerName.trim(),
-          defaultBranchName: branchName.trim() || "Main Branch",
-          defaultBranchCode: (branchCode.trim() || "HQ").toUpperCase(),
-          licenseDays: Number(expiresDays) || 365,
-        },
+      const res = await callWithAuth(provisionBusiness, {
+        businessName: name.trim(),
+        slug: slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-"),
+        ownerEmail: ownerEmail.trim(),
+        ownerPassword,
+        ownerFullName: ownerName.trim(),
+        defaultBranchName: branchName.trim() || "Main Branch",
+        defaultBranchCode: (branchCode.trim() || "HQ").toUpperCase(),
+        licenseDays: Number(expiresDays) || 365,
       });
       toast.success("Business provisioned");
       setResult({
