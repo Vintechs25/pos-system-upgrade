@@ -7,7 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 type ServerFn<TInput, TOutput> = (args: {
   data: TInput;
-  headers?: Record<string, string>;
+  headers?: HeadersInit;
+  fetch?: (url: string, init: RequestInit) => Promise<Response>;
 }) => Promise<TOutput>;
 
 export async function callWithAuth<TInput, TOutput>(
@@ -17,10 +18,17 @@ export async function callWithAuth<TInput, TOutput>(
   const { data: sess } = await supabase.auth.getSession();
   const token = sess.session?.access_token;
   if (!token) throw new Error("You must be signed in.");
+  const authorization = `Bearer ${token}`;
+  const fetchWithAuth = async (url: string, init: RequestInit) => {
+    const headers = new Headers(init.headers);
+    headers.set("authorization", authorization);
+    return fetch(url, { ...init, headers });
+  };
   try {
     return await fn({
       data,
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { authorization },
+      fetch: fetchWithAuth,
     });
   } catch (err) {
     // The auth middleware throws a `Response` on failure, which surfaces as
