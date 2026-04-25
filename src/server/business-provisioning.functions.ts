@@ -1,9 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { requireSupabaseAuthFromContext } from "@/lib/function-auth-middleware";
+import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
+
+const AuthPayloadSchema = z.object({
+  __authToken: z.string().min(1),
+});
 
 const ProvisionSchema = z.object({
+  __authToken: z.string().min(1),
   businessName: z.string().min(1).max(120),
   slug: z.string().min(1).max(60).regex(/^[a-z0-9-]+$/),
   ownerEmail: z.string().email().max(180),
@@ -15,9 +21,9 @@ const ProvisionSchema = z.object({
 });
 
 export const provisionBusiness = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuthFromContext])
   .inputValidator((input: unknown) => ProvisionSchema.parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
+    const context = await getAuthContext(data);
     // Ensure caller is system_owner
     const { data: callerRoles } = await context.supabase
       .from("user_roles")
@@ -102,6 +108,7 @@ export const provisionBusiness = createServerFn({ method: "POST" })
 
 // Provision a staff (cashier/supervisor) account for a business
 const ProvisionStaffSchema = z.object({
+  __authToken: z.string().min(1),
   businessId: z.string().uuid(),
   branchId: z.string().uuid().nullable(),
   email: z.string().email(),
@@ -111,9 +118,9 @@ const ProvisionStaffSchema = z.object({
 });
 
 export const provisionStaff = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuthFromContext])
   .inputValidator((input: unknown) => ProvisionStaffSchema.parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
+    const context = await getAuthContext(data);
     // Caller must be system_owner OR business_admin of that business
     const { data: callerRoles } = await context.supabase
       .from("user_roles")
