@@ -437,7 +437,17 @@ export function POSScreen() {
             <DialogTitle className="text-xl">Sale Complete</DialogTitle>
             <p className="text-sm text-muted-foreground mt-1">Receipt #{lastSaleNo.slice(-6)}</p>
           </div>
-          <DialogFooter className="sm:justify-center">
+          <DialogFooter className="sm:justify-center flex-col gap-2">
+            {lastSale && (
+              <div className="grid grid-cols-2 gap-2 w-full">
+                <Button variant="outline" onClick={() => printReceipt(lastSale, receiptOpts)}>
+                  <Printer className="mr-2 h-4 w-4" /> Print
+                </Button>
+                <Button variant="outline" onClick={() => downloadReceiptPDF(lastSale, receiptOpts)}>
+                  <Download className="mr-2 h-4 w-4" /> PDF
+                </Button>
+              </div>
+            )}
             <Button onClick={() => setConfirmOpen(false)} size="lg" className="w-full">
               New Sale
             </Button>
