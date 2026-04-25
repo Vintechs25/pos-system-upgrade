@@ -1,35 +1,18 @@
 /**
- * Helper to call TanStack server functions with the current Supabase
- * access token forwarded as an Authorization header. The
- * `requireSupabaseAuth` middleware reads this header to identify the user.
+ * Helper to call protected TanStack server functions and normalize errors.
+ * Auth is attached by the function middleware in `function-auth-middleware`.
  */
-import { supabase } from "@/integrations/supabase/client";
 
 type ServerFn<TInput, TOutput> = (args: {
   data: TInput;
-  headers?: HeadersInit;
-  fetch?: typeof fetch;
 }) => Promise<TOutput>;
 
 export async function callWithAuth<TInput, TOutput>(
   fn: ServerFn<TInput, TOutput>,
   data: TInput,
 ): Promise<TOutput> {
-  const { data: sess } = await supabase.auth.getSession();
-  const token = sess.session?.access_token;
-  if (!token) throw new Error("You must be signed in.");
-  const authorization = `Bearer ${token}`;
-  const fetchWithAuth: typeof fetch = async (input, init = {}) => {
-    const headers = new Headers(init.headers);
-    headers.set("authorization", authorization);
-    return fetch(input, { ...init, headers });
-  };
   try {
-    return await fn({
-      data,
-      headers: { authorization },
-      fetch: fetchWithAuth,
-    });
+    return await fn({ data });
   } catch (err) {
     // The auth middleware throws a `Response` on failure, which surfaces as
     // "[object Response]" by default. Extract the real message from it.

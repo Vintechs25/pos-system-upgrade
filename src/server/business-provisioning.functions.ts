@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireSupabaseAuthFromContext } from "@/lib/function-auth-middleware";
 
 const ProvisionSchema = z.object({
   businessName: z.string().min(1).max(120),
@@ -15,7 +15,7 @@ const ProvisionSchema = z.object({
 });
 
 export const provisionBusiness = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireSupabaseAuthFromContext])
   .inputValidator((input: unknown) => ProvisionSchema.parse(input))
   .handler(async ({ data, context }) => {
     // Ensure caller is system_owner
@@ -111,7 +111,7 @@ const ProvisionStaffSchema = z.object({
 });
 
 export const provisionStaff = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireSupabaseAuthFromContext])
   .inputValidator((input: unknown) => ProvisionStaffSchema.parse(input))
   .handler(async ({ data, context }) => {
     // Caller must be system_owner OR business_admin of that business
