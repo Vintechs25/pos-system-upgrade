@@ -316,7 +316,7 @@ export function BusinessAdminPanel() {
                   <Label>Role</Label>
                   <Select
                     value={staffRole}
-                    onValueChange={(v) => setStaffRole(v as "business_admin" | "staff")}
+                    onValueChange={(v) => setStaffRole(v as "business_admin" | "supervisor" | "cashier")}
                   >
                     <SelectTrigger>
                       <SelectValue />
