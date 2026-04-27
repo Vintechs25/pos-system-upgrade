@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { TimberWoodType, TimberSize } from "@/lib/types";
-import { formatKsh } from "@/lib/store";
+import type { CloudTimber } from "@/lib/cloud-store";
+import { formatKsh } from "@/lib/cloud-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,7 +13,7 @@ import {
 import { TreePine, Ruler, Plus, Minus } from "lucide-react";
 
 interface Props {
-  wood: TimberWoodType;
+  wood: CloudTimber;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAdd: (line: {
@@ -23,41 +23,44 @@ interface Props {
     quantity: number;
     unitPrice: number;
     unitLabel: string;
-    meta: { woodType: string; size: string; lengthFt: number; pieces: number };
+    meta: { species: string; size: string; length: number; pieces: number };
   }) => void;
 }
 
 export function TimberSaleDialog({ wood, open, onOpenChange, onAdd }: Props) {
-  const [size, setSize] = useState<TimberSize | null>(wood.sizes[0] ?? null);
-  const [length, setLength] = useState<number>(wood.quickLengths[0] ?? 12);
+  const defaultLength = Number(wood.length) || 12;
+  const [length, setLength] = useState<number>(defaultLength);
   const [pieces, setPieces] = useState<number>(1);
   const [override, setOverride] = useState<string>("");
 
-  const baseRate = size ? size.ratePerFt * wood.multiplier : 0;
-  const computed = baseRate * length * pieces;
+  const ratePerUnit = Number(wood.price_per_unit);
+  // If priced per ft/m we multiply by length; if per piece we just use rate.
+  const computed =
+    wood.price_unit === "piece" ? ratePerUnit * pieces : ratePerUnit * length * pieces;
   const overrideNum = parseFloat(override);
   const total = !isNaN(overrideNum) && override !== "" ? overrideNum : computed;
-  const unitPrice = pieces > 0 ? total / pieces : 0;
-
-  // bulk discount preview
   const bulkDisc = pieces >= 20 ? 10 : pieces >= 10 ? 5 : 0;
   const finalTotal = total * (1 - bulkDisc / 100);
+  const sizeLabel = `${Number(wood.thickness)}×${Number(wood.width)} ${wood.dim_unit}`;
 
   function handleAdd() {
-    if (!size) return;
     onAdd({
       productId: wood.id,
-      name: `${wood.name} ${size.label}`,
-      description: `${length}ft × ${pieces} pcs${bulkDisc ? ` · ${bulkDisc}% bulk` : ""}`,
+      name: `${wood.species} ${sizeLabel}`,
+      description: `${length}${wood.length_unit} × ${pieces} pcs${bulkDisc ? ` · ${bulkDisc}% bulk` : ""}`,
       quantity: pieces,
-      unitPrice: finalTotal / pieces,
+      unitPrice: finalTotal / Math.max(1, pieces),
       unitLabel: "pc",
-      meta: { woodType: wood.name, size: size.label, lengthFt: length, pieces },
+      meta: { species: wood.species, size: sizeLabel, length, pieces },
     });
     onOpenChange(false);
     setPieces(1);
     setOverride("");
   }
+
+  const quickLengths = [defaultLength, defaultLength * 0.75, defaultLength * 1.25].map((n) =>
+    Math.round(n),
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -65,43 +68,17 @@ export function TimberSaleDialog({ wood, open, onOpenChange, onAdd }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <TreePine className="h-5 w-5 text-timber" />
-            {wood.name} — Timber Sale
+            {wood.species} {sizeLabel}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
-          {/* Step 1: Size */}
           <div>
             <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-              1. Dimension
-            </div>
-            <div className="grid grid-cols-4 gap-2">
-              {wood.sizes.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setSize(s)}
-                  className={`rounded-lg border-2 px-3 py-3 text-center transition-all ${
-                    size?.id === s.id
-                      ? "border-accent bg-accent/10 text-foreground"
-                      : "border-border hover:border-accent/40"
-                  }`}
-                >
-                  <div className="font-bold text-base">{s.label}</div>
-                  <div className="text-[10px] text-muted-foreground">
-                    {formatKsh(s.ratePerFt * wood.multiplier)}/ft
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Step 2: Length quick select */}
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-              2. Length (feet)
+              Length ({wood.length_unit})
             </div>
             <div className="flex flex-wrap gap-2 mb-2">
-              {wood.quickLengths.map((l) => (
+              {quickLengths.map((l) => (
                 <button
                   key={l}
                   onClick={() => setLength(l)}
@@ -111,7 +88,7 @@ export function TimberSaleDialog({ wood, open, onOpenChange, onAdd }: Props) {
                       : "bg-card border-border hover:border-primary/40"
                   }`}
                 >
-                  {l} ft
+                  {l} {wood.length_unit}
                 </button>
               ))}
             </div>
@@ -124,21 +101,16 @@ export function TimberSaleDialog({ wood, open, onOpenChange, onAdd }: Props) {
                 className="h-9"
                 min={1}
               />
-              <span className="text-sm text-muted-foreground">ft (custom)</span>
+              <span className="text-sm text-muted-foreground">{wood.length_unit}</span>
             </div>
           </div>
 
-          {/* Step 3: Pieces */}
           <div>
             <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-              3. Pieces
+              Pieces
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setPieces(Math.max(1, pieces - 1))}
-              >
+              <Button variant="outline" size="icon" onClick={() => setPieces(Math.max(1, pieces - 1))}>
                 <Minus className="h-4 w-4" />
               </Button>
               <Input
@@ -153,47 +125,36 @@ export function TimberSaleDialog({ wood, open, onOpenChange, onAdd }: Props) {
             </div>
             {bulkDisc > 0 && (
               <div className="mt-2 text-xs font-semibold text-success">
-                ✓ Bulk discount applied: {bulkDisc}% off
+                ✓ Bulk discount: {bulkDisc}% off
               </div>
             )}
           </div>
 
-          {/* Step 4: Manual override */}
           <div>
             <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-              4. Price Override (optional)
+              Price override (optional)
             </div>
-            <Input
-              placeholder={`Auto: ${formatKsh(computed)}`}
-              value={override}
-              onChange={(e) => setOverride(e.target.value)}
-            />
+            <Input placeholder={`Auto: ${formatKsh(computed)}`} value={override} onChange={(e) => setOverride(e.target.value)} />
           </div>
 
-          {/* Live total */}
           <div className="rounded-xl bg-[image:var(--gradient-timber)] text-timber-foreground p-4 flex items-center justify-between">
             <div>
-              <div className="text-xs uppercase tracking-wider opacity-80">Line Total</div>
+              <div className="text-xs uppercase tracking-wider opacity-80">Line total</div>
               <div className="text-3xl font-bold">{formatKsh(finalTotal)}</div>
-              <div className="text-xs opacity-80 mt-1">
-                {formatKsh(unitPrice * (1 - bulkDisc / 100))} per piece
-              </div>
             </div>
             <TreePine className="h-12 w-12 opacity-30" />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button
             size="lg"
             onClick={handleAdd}
-            disabled={!size || pieces < 1}
+            disabled={pieces < 1}
             className="bg-accent text-accent-foreground hover:bg-accent/90"
           >
-            Add to Cart
+            Add to cart
           </Button>
         </DialogFooter>
       </DialogContent>
