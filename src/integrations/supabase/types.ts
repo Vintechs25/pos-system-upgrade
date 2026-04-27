@@ -195,6 +195,7 @@ export type Database = {
           sku: string | null
           stock: number
           supplier: string | null
+          supplier_id: string | null
           unit: string
           updated_at: string
         }
@@ -212,6 +213,7 @@ export type Database = {
           sku?: string | null
           stock?: number
           supplier?: string | null
+          supplier_id?: string | null
           unit?: string
           updated_at?: string
         }
@@ -229,6 +231,7 @@ export type Database = {
           sku?: string | null
           stock?: number
           supplier?: string | null
+          supplier_id?: string | null
           unit?: string
           updated_at?: string
         }
@@ -247,7 +250,116 @@ export type Database = {
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "hardware_products_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      mpesa_config: {
+        Row: {
+          business_id: string
+          callback_url: string | null
+          consumer_key: string | null
+          consumer_secret: string | null
+          created_at: string
+          enabled: boolean
+          environment: string
+          passkey: string | null
+          shortcode: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          callback_url?: string | null
+          consumer_key?: string | null
+          consumer_secret?: string | null
+          created_at?: string
+          enabled?: boolean
+          environment?: string
+          passkey?: string | null
+          shortcode?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          callback_url?: string | null
+          consumer_key?: string | null
+          consumer_secret?: string | null
+          created_at?: string
+          enabled?: boolean
+          environment?: string
+          passkey?: string | null
+          shortcode?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      mpesa_transactions: {
+        Row: {
+          account_reference: string | null
+          amount: number
+          branch_id: string | null
+          business_id: string
+          checkout_request_id: string | null
+          created_at: string
+          id: string
+          initiated_by: string | null
+          merchant_request_id: string | null
+          mpesa_receipt_number: string | null
+          phone: string
+          raw_callback: Json | null
+          result_code: number | null
+          result_desc: string | null
+          sale_id: string | null
+          status: string
+          transaction_desc: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_reference?: string | null
+          amount: number
+          branch_id?: string | null
+          business_id: string
+          checkout_request_id?: string | null
+          created_at?: string
+          id?: string
+          initiated_by?: string | null
+          merchant_request_id?: string | null
+          mpesa_receipt_number?: string | null
+          phone: string
+          raw_callback?: Json | null
+          result_code?: number | null
+          result_desc?: string | null
+          sale_id?: string | null
+          status?: string
+          transaction_desc?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_reference?: string | null
+          amount?: number
+          branch_id?: string | null
+          business_id?: string
+          checkout_request_id?: string | null
+          created_at?: string
+          id?: string
+          initiated_by?: string | null
+          merchant_request_id?: string | null
+          mpesa_receipt_number?: string | null
+          phone?: string
+          raw_callback?: Json | null
+          result_code?: number | null
+          result_desc?: string | null
+          sale_id?: string | null
+          status?: string
+          transaction_desc?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -336,7 +448,9 @@ export type Database = {
           customer_name: string | null
           discount: number
           id: string
+          mpesa_transaction_id: string | null
           payment_method: string
+          payment_ref: string | null
           receipt_no: string | null
           status: string
           subtotal: number
@@ -351,7 +465,9 @@ export type Database = {
           customer_name?: string | null
           discount?: number
           id?: string
+          mpesa_transaction_id?: string | null
           payment_method?: string
+          payment_ref?: string | null
           receipt_no?: string | null
           status?: string
           subtotal?: number
@@ -366,7 +482,9 @@ export type Database = {
           customer_name?: string | null
           discount?: number
           id?: string
+          mpesa_transaction_id?: string | null
           payment_method?: string
+          payment_ref?: string | null
           receipt_no?: string | null
           status?: string
           subtotal?: number
@@ -394,7 +512,53 @@ export type Database = {
             referencedRelation: "customers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sales_mpesa_transaction_id_fkey"
+            columns: ["mpesa_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "mpesa_transactions"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      suppliers: {
+        Row: {
+          business_id: string
+          contact_person: string | null
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          contact_person?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          contact_person?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       timber_products: {
         Row: {
