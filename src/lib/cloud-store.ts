@@ -452,7 +452,7 @@ export async function recordSale(args: {
     unit_price: i.unit_price,
     unit_label: i.unit_label,
     total: i.total,
-    meta: i.meta ?? null,
+    meta: (i.meta ?? null) as never,
   }));
   if (itemsPayload.length) {
     const { error: itemErr } = await supabase.from("sale_items").insert(itemsPayload);
