@@ -1,6 +1,4 @@
 import { useMemo, useState } from "react";
-import { usePOS, formatKsh } from "@/lib/store";
-import type { HardwareProduct, TimberWoodType } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,19 +9,16 @@ import {
   TreePine,
   Package,
   X,
-  CreditCard,
   Banknote,
   Smartphone,
   Receipt,
   CheckCircle2,
-  ShoppingBag,
-  Printer,
-  Download,
+  CreditCard,
+  HardHat,
+  Loader2,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useAuth } from "@/lib/auth-context";
-import { printReceipt, downloadReceiptPDF } from "@/lib/receipt";
-import { TimberSaleDialog } from "@/components/pos/TimberSaleDialog";
 import {
   Dialog,
   DialogContent,
@@ -38,39 +33,53 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { TimberSaleDialog } from "@/components/pos/TimberSaleDialog";
+import {
+  useBranchSelection,
+  useHardware,
+  useTimber,
+  useCustomers,
+  recordSale,
+  formatKsh,
+  pollMpesaStatus,
+  type CloudHardware,
+  type CloudTimber,
+  type CloudSaleItem,
+} from "@/lib/cloud-store";
+import { callWithAuth } from "@/lib/server-fn-auth";
+import { initiateMpesaStk, linkMpesaToSale } from "@/server/mpesa.functions";
+import { toast } from "sonner";
 
-type Tab = "all" | "timber" | string; // string = hardware category
+interface CartLine extends CloudSaleItem {
+  lineId: string;
+}
 
 export function POSScreen() {
-  const {
-    hardware,
-    timber,
-    customers,
-    cart,
-    activeCustomerId,
-    cartDiscountPct,
-    addCartItem,
-    updateCartItem,
-    removeCartItem,
-    clearCart,
-    setCustomer,
-    setDiscount,
-    completeSale,
-  } = usePOS();
+  const { activeBusinessId, user, businesses } = useAuth();
+  const { activeBranchId } = useBranchSelection();
+  const { items: hardware, reload: reloadHw } = useHardware(activeBranchId);
+  const { items: timber, reload: reloadTm } = useTimber(activeBranchId);
+  const { items: customers } = useCustomers();
+  const activeBiz = businesses.find((b) => b.id === activeBusinessId);
 
   const [search, setSearch] = useState("");
-  const [tab, setTab] = useState<Tab>("all");
-  const [timberDialog, setTimberDialog] = useState<TimberWoodType | null>(null);
+  const [tab, setTab] = useState<"all" | "timber" | string>("all");
+  const [cart, setCart] = useState<CartLine[]>([]);
+  const [activeCustomerId, setActiveCustomerId] = useState<string>("walk-in");
+  const [discountPct, setDiscountPct] = useState(0);
+  const [timberDialog, setTimberDialog] = useState<CloudTimber | null>(null);
   const [payOpen, setPayOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [lastSaleNo, setLastSaleNo] = useState<string>("");
-  const [lastSale, setLastSale] = useState<ReturnType<typeof completeSale> | null>(null);
-  const { businesses, activeBusinessId } = useAuth();
-  const activeBiz = businesses.find((b) => b.id === activeBusinessId);
-  const receiptOpts = { businessName: activeBiz?.name ?? "TimberYard POS" };
+  const [lastReceipt, setLastReceipt] = useState<string>("");
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const [mpesaPhone, setMpesaPhone] = useState("");
+  const [mpesaOpen, setMpesaOpen] = useState(false);
+  const [mpesaStatus, setMpesaStatus] = useState<string>("");
+  const [mpesaBusy, setMpesaBusy] = useState(false);
 
   const categories = useMemo(() => {
-    const set = new Set(hardware.map((h) => h.category));
+    const set = new Set<string>();
+    hardware.forEach((h) => h.category && set.add(h.category));
     return Array.from(set).sort();
   }, [hardware]);
 
@@ -79,9 +88,7 @@ export function POSScreen() {
     if (tab !== "all" && tab !== "timber") list = list.filter((h) => h.category === tab);
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter(
-        (h) => h.name.toLowerCase().includes(q) || h.sku.toLowerCase().includes(q),
-      );
+      list = list.filter((h) => h.name.toLowerCase().includes(q) || (h.sku ?? "").toLowerCase().includes(q));
     }
     return list;
   }, [hardware, tab, search]);
@@ -91,84 +98,225 @@ export function POSScreen() {
     if (!showTimber) return [];
     if (!search.trim()) return timber;
     const q = search.toLowerCase();
-    return timber.filter((t) => t.name.toLowerCase().includes(q));
+    return timber.filter((t) => t.species.toLowerCase().includes(q));
   }, [timber, showTimber, search]);
 
   const subtotal = cart.reduce((s, i) => s + i.total, 0);
   const customer = customers.find((c) => c.id === activeCustomerId);
-  const totalDiscPct = cartDiscountPct + (customer?.discountPct ?? 0);
+  const totalDiscPct = discountPct + (customer ? Number(customer.loyalty_discount_pct) : 0);
   const discount = (subtotal * totalDiscPct) / 100;
   const total = subtotal - discount;
 
-  function addHardwareItem(h: HardwareProduct) {
-    const existing = cart.find((c) => c.kind === "hardware" && c.productId === h.id);
-    if (existing) {
-      updateCartItem(existing.lineId, existing.quantity + 1);
-    } else {
-      addCartItem({
-        kind: "hardware",
-        productId: h.id,
-        name: h.name,
-        description: h.sku,
-        quantity: 1,
-        unitPrice: h.price,
-        unitLabel: h.unit,
+  function addHardwareItem(h: CloudHardware) {
+    setCart((prev) => {
+      const existing = prev.find((c) => c.kind === "hardware" && c.product_id === h.id);
+      if (existing) {
+        return prev.map((c) =>
+          c.lineId === existing.lineId
+            ? { ...c, quantity: c.quantity + 1, total: c.unit_price * (c.quantity + 1) }
+            : c,
+        );
+      }
+      return [
+        ...prev,
+        {
+          lineId: `L-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          kind: "hardware",
+          product_id: h.id,
+          name: h.name,
+          description: h.sku,
+          quantity: 1,
+          unit_price: Number(h.price),
+          unit_label: h.unit,
+          total: Number(h.price),
+        },
+      ];
+    });
+  }
+
+  function addTimberLine(line: {
+    productId: string;
+    name: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    unitLabel: string;
+    meta: { species: string; size: string; length: number; pieces: number };
+  }) {
+    setCart((prev) => [
+      ...prev,
+      {
+        lineId: `L-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        kind: "timber",
+        product_id: line.productId,
+        name: line.name,
+        description: line.description,
+        quantity: line.quantity,
+        unit_price: line.unitPrice,
+        unit_label: line.unitLabel,
+        total: line.unitPrice * line.quantity,
+        meta: line.meta,
+      },
+    ]);
+  }
+
+  function updateQty(lineId: string, qty: number) {
+    if (qty < 1) {
+      setCart((prev) => prev.filter((c) => c.lineId !== lineId));
+      return;
+    }
+    setCart((prev) =>
+      prev.map((c) =>
+        c.lineId === lineId ? { ...c, quantity: qty, total: c.unit_price * qty } : c,
+      ),
+    );
+  }
+
+  function clearCart() {
+    setCart([]);
+    setDiscountPct(0);
+    setActiveCustomerId("walk-in");
+  }
+
+  async function finalizeSale(
+    method: "cash" | "card" | "mpesa" | "credit",
+    paymentRef?: string | null,
+    mpesaTxId?: string | null,
+  ) {
+    if (!activeBusinessId || !activeBranchId) {
+      toast.error("Select branch first");
+      return null;
+    }
+    if (cart.length === 0) return null;
+    if (method === "credit" && (!customer || customer.id === "walk-in")) {
+      toast.error("Select a contractor for credit sales");
+      return null;
+    }
+
+    try {
+      const sale = await recordSale({
+        business_id: activeBusinessId,
+        branch_id: activeBranchId,
+        customer_id: customer ? customer.id : null,
+        customer_name: customer ? customer.name : "Walk-in",
+        payment_method: method,
+        status: method === "credit" ? "credit" : "paid",
+        subtotal,
+        discount,
+        total,
+        payment_ref: paymentRef ?? null,
+        mpesa_transaction_id: mpesaTxId ?? null,
+        items: cart.map(({ lineId: _l, ...rest }) => rest),
+        created_by: user?.id ?? null,
       });
+      setLastReceipt(sale.receipt_no ?? sale.id);
+      setConfirmOpen(true);
+      setPayOpen(false);
+      clearCart();
+      reloadHw();
+      reloadTm();
+      return sale;
+    } catch (e) {
+      toast.error((e as Error).message);
+      return null;
     }
   }
 
-  function pay(method: "cash" | "card" | "mpesa" | "credit") {
-    if (cart.length === 0) return;
-    if (method === "credit" && activeCustomerId === "c-walkin") {
-      alert("Select a contractor account for credit sales.");
+  async function payMpesa() {
+    if (!activeBusinessId || !activeBranchId) {
+      toast.error("Select branch first");
       return;
     }
-    const sale = completeSale(method);
-    setLastSaleNo(sale.id);
-    setLastSale(sale);
-    setPayOpen(false);
-    setConfirmOpen(true);
+    if (!mpesaPhone.trim()) {
+      toast.error("Enter customer phone");
+      return;
+    }
+    setMpesaBusy(true);
+    setMpesaStatus("Sending STK push to phone...");
+    try {
+      const res = await callWithAuth(initiateMpesaStk as never, {
+        businessId: activeBusinessId,
+        branchId: activeBranchId,
+        phone: mpesaPhone.trim(),
+        amount: Math.round(total),
+        accountReference: (activeBiz?.slug ?? "POS").slice(0, 12),
+        transactionDesc: "POS Sale",
+      } as never) as { transactionId: string; checkoutRequestId: string };
+
+      setMpesaStatus("Waiting for customer to enter PIN...");
+      // poll up to ~90s
+      let attempts = 0;
+      let receipt: string | null = null;
+      while (attempts < 30) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const status = await pollMpesaStatus(res.checkoutRequestId);
+        if (status?.status === "success") {
+          receipt = status.mpesa_receipt_number ?? null;
+          break;
+        }
+        if (status?.status === "failed" || status?.status === "cancelled") {
+          throw new Error(status.result_desc || "Payment cancelled");
+        }
+        attempts++;
+      }
+      if (!receipt && attempts >= 30) {
+        throw new Error("Timed out waiting for M-Pesa confirmation");
+      }
+      setMpesaStatus("Payment received! Saving sale...");
+      const sale = await finalizeSale("mpesa", receipt, res.transactionId);
+      if (sale) {
+        // link sale id back to mpesa_transactions
+        try {
+          await callWithAuth(linkMpesaToSale as never, {
+            transactionId: res.transactionId,
+            saleId: sale.id,
+          } as never);
+        } catch {
+          /* non-blocking */
+        }
+      }
+      setMpesaOpen(false);
+      setMpesaPhone("");
+      setMpesaStatus("");
+    } catch (e) {
+      toast.error((e as Error).message);
+      setMpesaStatus("");
+    } finally {
+      setMpesaBusy(false);
+    }
   }
 
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
-  const [mobileCartOpen, setMobileCartOpen] = useState(false);
 
   const cartPanel = (
-    <>
+    <div className="flex flex-col h-full">
       <div className="border-b border-border p-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
-            Current Sale
-          </h2>
+          <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Current sale</h2>
           {cart.length > 0 && (
             <Button variant="ghost" size="sm" onClick={clearCart}>
               <X className="h-3 w-3 mr-1" /> Clear
             </Button>
           )}
         </div>
-        <Select value={activeCustomerId} onValueChange={setCustomer}>
-          <SelectTrigger className="h-11">
-            <SelectValue />
-          </SelectTrigger>
+        <Select value={activeCustomerId} onValueChange={setActiveCustomerId}>
+          <SelectTrigger className="h-11"><SelectValue placeholder="Walk-in" /></SelectTrigger>
           <SelectContent>
+            <SelectItem value="walk-in">Walk-in customer</SelectItem>
             {customers.map((c) => (
               <SelectItem key={c.id} value={c.id}>
                 <div className="flex items-center gap-2">
+                  {c.type === "contractor" && <HardHat className="h-3 w-3 text-accent" />}
                   <span className="font-medium">{c.name}</span>
-                  {c.type === "contractor" && (
-                    <span className="text-[10px] uppercase font-bold text-accent">
-                      Contractor
-                    </span>
-                  )}
                 </div>
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        {customer && customer.type === "contractor" && (
+        {customer && (
           <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-            <span>Balance: {formatKsh(customer.balance)}</span>
-            <span>{customer.discountPct}% loyalty discount</span>
+            <span>Balance: {formatKsh(Number(customer.balance))}</span>
+            <span>{Number(customer.loyalty_discount_pct)}% loyalty</span>
           </div>
         )}
       </div>
@@ -178,9 +326,6 @@ export function POSScreen() {
           <div className="flex flex-col items-center justify-center h-full text-center px-6 py-16">
             <Receipt className="h-12 w-12 text-muted-foreground/40 mb-3" />
             <p className="text-sm font-medium text-muted-foreground">Cart is empty</p>
-            <p className="text-xs text-muted-foreground/70 mt-1">
-              Tap items to add them.
-            </p>
           </div>
         )}
         {cart.map((item) => (
@@ -193,197 +338,147 @@ export function POSScreen() {
                   <Package className="h-4 w-4 text-hardware flex-shrink-0 mt-0.5" />
                 )}
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-foreground truncate">
-                    {item.name}
-                  </div>
+                  <div className="text-sm font-semibold text-foreground truncate">{item.name}</div>
                   <div className="text-[11px] text-muted-foreground">{item.description}</div>
                 </div>
               </div>
-              <button
-                onClick={() => removeCartItem(item.lineId)}
-                className="text-muted-foreground hover:text-destructive transition-colors p-1"
-                aria-label="Remove"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => updateQty(item.lineId, 0)}>
+                <Trash2 className="h-3 w-3" />
+              </Button>
             </div>
             <div className="flex items-center justify-between mt-2">
               <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => updateCartItem(item.lineId, Math.max(1, item.quantity - 1))}
-                >
-                  <Minus className="h-3.5 w-3.5" />
+                <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(item.lineId, item.quantity - 1)}>
+                  <Minus className="h-3 w-3" />
                 </Button>
-                <span className="w-12 text-center text-sm font-bold">
-                  {item.quantity}
-                  <span className="text-[10px] text-muted-foreground ml-1">
-                    {item.unitLabel}
-                  </span>
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => updateCartItem(item.lineId, item.quantity + 1)}
-                >
-                  <Plus className="h-3.5 w-3.5" />
+                <span className="w-8 text-center text-sm font-bold">{item.quantity}</span>
+                <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(item.lineId, item.quantity + 1)}>
+                  <Plus className="h-3 w-3" />
                 </Button>
               </div>
-              <div className="text-right">
-                <div className="text-sm font-bold">{formatKsh(item.total)}</div>
-                <div className="text-[10px] text-muted-foreground">
-                  @ {formatKsh(item.unitPrice)}
-                </div>
-              </div>
+              <div className="text-sm font-bold">{formatKsh(item.total)}</div>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="border-t border-border bg-card p-4 space-y-3">
-        <div className="flex items-center justify-between text-sm">
+      <div className="border-t border-border p-4 space-y-2">
+        <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">Subtotal</span>
-          <span className="font-semibold">{formatKsh(subtotal)}</span>
+          <span className="font-medium">{formatKsh(subtotal)}</span>
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm text-muted-foreground">Discount %</span>
+        <div className="flex justify-between text-sm items-center">
+          <span className="text-muted-foreground">Discount %</span>
           <Input
             type="number"
-            value={cartDiscountPct}
-            onChange={(e) => setDiscount(Number(e.target.value) || 0)}
-            className="h-8 w-20 text-right"
-            min={0}
-            max={100}
+            value={discountPct}
+            onChange={(e) => setDiscountPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+            className="h-7 w-20 text-right"
           />
         </div>
-        {totalDiscPct > 0 && (
-          <div className="flex justify-between text-xs text-success">
-            <span>Discount ({totalDiscPct}%)</span>
-            <span>−{formatKsh(discount)}</span>
+        {discount > 0 && (
+          <div className="flex justify-between text-sm text-success">
+            <span>You save</span>
+            <span>-{formatKsh(discount)}</span>
           </div>
         )}
-        <div className="flex items-center justify-between border-t border-border pt-3">
-          <span className="text-base font-bold uppercase">Total</span>
-          <span className="text-2xl font-bold text-foreground">{formatKsh(total)}</span>
+        <div className="flex justify-between text-lg font-bold pt-2 border-t border-border">
+          <span>Total</span>
+          <span>{formatKsh(total)}</span>
         </div>
-        <Button
-          size="lg"
-          disabled={cart.length === 0}
-          onClick={() => {
-            setMobileCartOpen(false);
-            setPayOpen(true);
-          }}
-          className="w-full h-14 text-base font-bold bg-accent text-accent-foreground hover:bg-accent/90 shadow-[var(--shadow-elevated)]"
-        >
-          <Receipt className="mr-2 h-5 w-5" /> Pay {formatKsh(total)}
+        <Button className="w-full h-12 text-base font-bold" disabled={cart.length === 0} onClick={() => setPayOpen(true)}>
+          Charge {formatKsh(total)}
         </Button>
       </div>
-    </>
+    </div>
   );
 
   return (
-    <div className="flex min-h-[calc(100vh-7rem)] md:min-h-screen flex-col lg:flex-row">
-      {/* CART PANEL — desktop only */}
-      <section className="hidden lg:flex w-[420px] flex-col border-r border-border bg-card">
-        {cartPanel}
-      </section>
-
-
-      {/* PRODUCT GRID — right */}
-      <section className="flex-1 flex flex-col bg-background lg:overflow-hidden">
-        <div className="sticky top-14 md:top-0 z-10 border-b border-border p-3 md:p-4 space-y-3 bg-card">{/* mobile-friendly sticky search */}
+    <div className="flex h-[calc(100vh-3.5rem)] lg:h-screen">
+      {/* Catalog */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <div className="border-b border-border bg-card p-4 space-y-3">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              autoFocus
+              placeholder="Search products..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name or SKU..."
-              className="h-12 pl-11 text-base"
+              className="pl-9 h-11"
             />
           </div>
-          <div className="flex flex-wrap gap-2">
-            {(["all", "timber", ...categories] as Tab[]).map((t) => (
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            <button
+              onClick={() => setTab("all")}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap ${tab === "all" ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}
+            >All</button>
+            <button
+              onClick={() => setTab("timber")}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap ${tab === "timber" ? "bg-timber text-timber-foreground" : "bg-secondary text-muted-foreground"}`}
+            >Timber</button>
+            {categories.map((c) => (
               <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition-all ${
-                  tab === t
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-secondary-foreground hover:bg-secondary/70"
-                }`}
-              >
-                {t === "all" ? "All" : t}
-              </button>
+                key={c}
+                onClick={() => setTab(c)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap ${tab === c ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}
+              >{c}</button>
             ))}
           </div>
         </div>
 
-        <div className="flex-1 lg:overflow-y-auto p-3 md:p-4 pb-28 lg:pb-4">{/* extra bottom padding for mobile FAB */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
-            {filteredTimber.map((w) => (
-              <button
-                key={w.id}
-                onClick={() => setTimberDialog(w)}
-                className="relative rounded-xl bg-[image:var(--gradient-timber)] text-timber-foreground p-4 text-left h-32 flex flex-col justify-between shadow-[var(--shadow-soft)] hover:shadow-[var(--shadow-elevated)] hover:scale-[1.02] active:scale-95 transition-all"
-              >
-                <div className="absolute top-2 right-2 text-[9px] font-bold uppercase bg-timber-foreground/20 backdrop-blur-sm px-2 py-0.5 rounded-full">
-                  Timber
-                </div>
-                <TreePine className="h-6 w-6 opacity-70" />
-                <div>
-                  <div className="font-bold text-base leading-tight">{w.name}</div>
-                  <div className="text-[10px] opacity-80 mt-0.5">{w.pieces} pcs available</div>
-                </div>
-              </button>
-            ))}
-            {filteredHardware.map((h) => {
-              const low = h.stock <= h.reorderLevel;
-              return (
-                <button
-                  key={h.id}
-                  onClick={() => addHardwareItem(h)}
-                  disabled={h.stock === 0}
-                  className="relative rounded-xl bg-card border-2 border-border p-4 text-left h-32 flex flex-col justify-between shadow-[var(--shadow-soft)] hover:border-accent hover:shadow-[var(--shadow-elevated)] hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {low && (
-                    <div className="absolute top-2 right-2 text-[9px] font-bold uppercase bg-warning/20 text-warning px-2 py-0.5 rounded-full">
-                      Low
-                    </div>
-                  )}
-                  <div className="flex items-center gap-1.5">
-                    <Package className="h-4 w-4 text-hardware" />
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-                      {h.category}
-                    </span>
-                  </div>
-                  <div>
-                    <div className="font-semibold text-sm leading-tight text-foreground line-clamp-2">
-                      {h.name}
-                    </div>
-                    <div className="flex items-baseline justify-between mt-1">
-                      <span className="text-base font-bold text-foreground">
-                        {formatKsh(h.price)}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {h.stock} {h.unit}
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          {filteredHardware.length === 0 && filteredTimber.length === 0 && (
-            <div className="text-center py-16 text-muted-foreground">
-              No items match "{search}".
+        <div className="flex-1 overflow-y-auto p-4">
+          {!activeBranchId && (
+            <div className="text-center text-muted-foreground py-12">
+              Select a branch from the sidebar to start selling.
             </div>
           )}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {showTimber && filteredTimber.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTimberDialog(t)}
+                className="rounded-xl border border-border bg-card p-3 text-left hover:border-timber hover:shadow-[var(--shadow-soft)] transition-all"
+              >
+                <TreePine className="h-5 w-5 text-timber mb-2" />
+                <div className="font-semibold text-sm">{t.species}</div>
+                <div className="text-xs text-muted-foreground">{Number(t.thickness)}×{Number(t.width)} {t.dim_unit}</div>
+                <div className="text-sm font-bold mt-1">{formatKsh(Number(t.price_per_unit))}/{t.price_unit}</div>
+              </button>
+            ))}
+            {filteredHardware.map((h) => (
+              <button
+                key={h.id}
+                onClick={() => addHardwareItem(h)}
+                disabled={Number(h.stock) <= 0}
+                className="rounded-xl border border-border bg-card p-3 text-left hover:border-primary hover:shadow-[var(--shadow-soft)] transition-all disabled:opacity-40"
+              >
+                <Package className="h-5 w-5 text-hardware mb-2" />
+                <div className="font-semibold text-sm truncate">{h.name}</div>
+                <div className="text-xs text-muted-foreground">Stock: {Number(h.stock)}</div>
+                <div className="text-sm font-bold mt-1">{formatKsh(Number(h.price))}</div>
+              </button>
+            ))}
+          </div>
         </div>
-      </section>
+      </div>
+
+      {/* Cart desktop */}
+      <aside className="hidden lg:flex w-[380px] border-l border-border bg-card">
+        <div className="flex-1">{cartPanel}</div>
+      </aside>
+
+      {/* Mobile cart trigger */}
+      <div className="lg:hidden fixed bottom-4 right-4 z-30">
+        <Button size="lg" onClick={() => setMobileCartOpen(true)} className="rounded-full h-14 shadow-lg">
+          <Receipt className="h-5 w-5 mr-2" /> Cart ({cartCount})
+        </Button>
+      </div>
+      <Sheet open={mobileCartOpen} onOpenChange={setMobileCartOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md p-0">
+          <SheetTitle className="sr-only">Cart</SheetTitle>
+          <div className="h-full">{cartPanel}</div>
+        </SheetContent>
+      </Sheet>
 
       {/* Timber dialog */}
       {timberDialog && (
@@ -391,91 +486,91 @@ export function POSScreen() {
           wood={timberDialog}
           open={!!timberDialog}
           onOpenChange={(o) => !o && setTimberDialog(null)}
-          onAdd={(line) => addCartItem({ kind: "timber", ...line })}
+          onAdd={addTimberLine}
         />
       )}
 
-      {/* Payment dialog */}
+      {/* Pay dialog */}
       <Dialog open={payOpen} onOpenChange={setPayOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Choose Payment Method</DialogTitle>
+            <DialogTitle>Choose payment</DialogTitle>
           </DialogHeader>
-          <div className="text-center py-2">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">
-              Amount Due
-            </div>
-            <div className="text-4xl font-bold text-foreground">{formatKsh(total)}</div>
+          <div className="text-center py-3">
+            <div className="text-4xl font-bold">{formatKsh(total)}</div>
+            <div className="text-xs text-muted-foreground mt-1">Receipt will be generated</div>
           </div>
-          <div className="grid grid-cols-2 gap-3 py-2">
-            {[
-              { id: "cash", label: "Cash", icon: Banknote },
-              { id: "mpesa", label: "M-Pesa", icon: Smartphone },
-              { id: "card", label: "Card", icon: CreditCard },
-              { id: "credit", label: "On Credit", icon: Receipt },
-            ].map((m) => (
-              <button
-                key={m.id}
-                onClick={() => pay(m.id as "cash" | "card" | "mpesa" | "credit")}
-                className="rounded-xl border-2 border-border p-5 hover:border-accent hover:bg-accent/5 transition-all flex flex-col items-center gap-2"
-              >
-                <m.icon className="h-7 w-7 text-foreground" />
-                <span className="font-semibold text-sm">{m.label}</span>
-              </button>
-            ))}
+          <div className="grid grid-cols-2 gap-3">
+            <Button size="lg" variant="outline" className="h-20 flex-col" onClick={() => finalizeSale("cash")}>
+              <Banknote className="h-6 w-6 mb-1" /> Cash
+            </Button>
+            <Button size="lg" variant="outline" className="h-20 flex-col" onClick={() => { setPayOpen(false); setMpesaOpen(true); }}>
+              <Smartphone className="h-6 w-6 mb-1" /> M-Pesa
+            </Button>
+            <Button size="lg" variant="outline" className="h-20 flex-col" onClick={() => finalizeSale("card")}>
+              <CreditCard className="h-6 w-6 mb-1" /> Card
+            </Button>
+            <Button size="lg" variant="outline" className="h-20 flex-col" onClick={() => finalizeSale("credit")} disabled={!customer || customer.type !== "contractor"}>
+              <HardHat className="h-6 w-6 mb-1" /> Credit
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Confirmation */}
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="max-w-sm text-center">
-          <div className="flex flex-col items-center py-4">
-            <div className="h-16 w-16 rounded-full bg-success/10 flex items-center justify-center mb-3">
-              <CheckCircle2 className="h-10 w-10 text-success" />
+      {/* M-Pesa STK dialog */}
+      <Dialog open={mpesaOpen} onOpenChange={(o) => !mpesaBusy && setMpesaOpen(o)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Smartphone className="h-5 w-5" /> M-Pesa STK Push
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="text-center">
+              <div className="text-3xl font-bold">{formatKsh(total)}</div>
             </div>
-            <DialogTitle className="text-xl">Sale Complete</DialogTitle>
-            <p className="text-sm text-muted-foreground mt-1">Receipt #{lastSaleNo.slice(-6)}</p>
-          </div>
-          <DialogFooter className="sm:justify-center flex-col gap-2">
-            {lastSale && (
-              <div className="grid grid-cols-2 gap-2 w-full">
-                <Button variant="outline" onClick={() => printReceipt(lastSale, receiptOpts)}>
-                  <Printer className="mr-2 h-4 w-4" /> Print
-                </Button>
-                <Button variant="outline" onClick={() => downloadReceiptPDF(lastSale, receiptOpts)}>
-                  <Download className="mr-2 h-4 w-4" /> PDF
-                </Button>
+            <div>
+              <label className="text-xs font-medium">Customer phone</label>
+              <Input
+                placeholder="07XXXXXXXX"
+                value={mpesaPhone}
+                onChange={(e) => setMpesaPhone(e.target.value)}
+                disabled={mpesaBusy}
+              />
+            </div>
+            {mpesaStatus && (
+              <div className="rounded-md bg-muted p-3 text-sm flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {mpesaStatus}
               </div>
             )}
-            <Button onClick={() => setConfirmOpen(false)} size="lg" className="w-full">
-              New Sale
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMpesaOpen(false)} disabled={mpesaBusy}>Cancel</Button>
+            <Button onClick={payMpesa} disabled={mpesaBusy}>
+              {mpesaBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send STK push"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Mobile cart FAB */}
-      {cartCount > 0 && (
-        <button
-          onClick={() => setMobileCartOpen(true)}
-          className="lg:hidden fixed bottom-20 right-4 z-30 flex items-center gap-2 rounded-full bg-accent text-accent-foreground px-5 py-3 shadow-[var(--shadow-elevated)] font-bold active:scale-95 transition-transform"
-        >
-          <ShoppingBag className="h-5 w-5" />
-          <span className="text-sm">{cartCount}</span>
-          <span className="text-sm border-l border-accent-foreground/30 pl-2">
-            {formatKsh(total)}
-          </span>
-        </button>
-      )}
-
-      {/* Mobile cart sheet */}
-      <Sheet open={mobileCartOpen} onOpenChange={setMobileCartOpen}>
-        <SheetContent side="right" className="lg:hidden p-0 w-full sm:max-w-md flex flex-col">
-          <SheetTitle className="sr-only">Current Sale</SheetTitle>
-          {cartPanel}
-        </SheetContent>
-      </Sheet>
+      {/* Confirm dialog */}
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-success">
+              <CheckCircle2 className="h-6 w-6" /> Sale completed
+            </DialogTitle>
+          </DialogHeader>
+          <div className="text-center py-4">
+            <div className="text-sm text-muted-foreground">Receipt</div>
+            <div className="text-xl font-bold tracking-wider">{lastReceipt}</div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setConfirmOpen(false)} className="w-full">Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
