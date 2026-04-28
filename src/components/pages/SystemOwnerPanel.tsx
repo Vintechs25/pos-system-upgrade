@@ -35,7 +35,9 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
+  Smartphone,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 
