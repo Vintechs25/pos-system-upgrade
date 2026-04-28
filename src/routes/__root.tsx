@@ -31,14 +31,18 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "TIMBERLINE POS" },
+      { name: "description", content: "A cloud-enabled Point of Sale (POS) system for managing businesses, inventory, and customer data." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "TIMBERLINE POS" },
+      { property: "og:description", content: "A cloud-enabled Point of Sale (POS) system for managing businesses, inventory, and customer data." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "TIMBERLINE POS" },
+      { name: "twitter:description", content: "A cloud-enabled Point of Sale (POS) system for managing businesses, inventory, and customer data." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/6Zyh7t2lSWWW0Q3OeaLEIv5a10i2/social-images/social-1777354411549-vintech_systems_consulting_logo.webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/6Zyh7t2lSWWW0Q3OeaLEIv5a10i2/social-images/social-1777354411549-vintech_systems_consulting_logo.webp" },
     ],
     links: [
       {
