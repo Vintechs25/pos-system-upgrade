@@ -80,6 +80,70 @@ export function SystemOwnerPanel() {
     licenseKey: string;
   } | null>(null);
 
+  // M-Pesa config state
+  const [mpesaBusiness, setMpesaBusiness] = useState<Business | null>(null);
+  const [mpesaLoading, setMpesaLoading] = useState(false);
+  const [mpesaSaving, setMpesaSaving] = useState(false);
+  const [mpesaForm, setMpesaForm] = useState({
+    enabled: false,
+    environment: "sandbox" as "sandbox" | "production",
+    shortcode: "",
+    passkey: "",
+    consumer_key: "",
+    consumer_secret: "",
+    callback_url: "",
+  });
+  const [showSecrets, setShowSecrets] = useState(false);
+
+  const openMpesa = async (b: Business) => {
+    setMpesaBusiness(b);
+    setShowSecrets(false);
+    setMpesaLoading(true);
+    const { data, error } = await supabase
+      .from("mpesa_config")
+      .select("*")
+      .eq("business_id", b.id)
+      .maybeSingle();
+    if (error && error.code !== "PGRST116") toast.error(error.message);
+    setMpesaForm({
+      enabled: data?.enabled ?? false,
+      environment: (data?.environment as "sandbox" | "production") ?? "sandbox",
+      shortcode: data?.shortcode ?? "",
+      passkey: data?.passkey ?? "",
+      consumer_key: data?.consumer_key ?? "",
+      consumer_secret: data?.consumer_secret ?? "",
+      callback_url:
+        data?.callback_url ??
+        `${window.location.origin}/api/public/mpesa-callback`,
+    });
+    setMpesaLoading(false);
+  };
+
+  const saveMpesa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mpesaBusiness) return;
+    setMpesaSaving(true);
+    const payload = {
+      business_id: mpesaBusiness.id,
+      enabled: mpesaForm.enabled,
+      environment: mpesaForm.environment,
+      shortcode: mpesaForm.shortcode.trim() || null,
+      passkey: mpesaForm.passkey.trim() || null,
+      consumer_key: mpesaForm.consumer_key.trim() || null,
+      consumer_secret: mpesaForm.consumer_secret.trim() || null,
+      callback_url: mpesaForm.callback_url.trim() || null,
+    };
+    const { error } = await supabase
+      .from("mpesa_config")
+      .upsert(payload, { onConflict: "business_id" });
+    setMpesaSaving(false);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("M-Pesa config saved");
+      setMpesaBusiness(null);
+    }
+  };
+
   const load = async () => {
     setLoading(true);
     const { data, error } = await supabase
