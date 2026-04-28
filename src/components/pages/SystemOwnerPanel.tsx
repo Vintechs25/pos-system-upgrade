@@ -549,6 +549,14 @@ export function SystemOwnerPanel() {
                             >
                               <KeyRound className="h-3.5 w-3.5" />
                             </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              title="Configure M-Pesa Daraja"
+                              onClick={() => openMpesa(b)}
+                            >
+                              <Smartphone className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -560,6 +568,138 @@ export function SystemOwnerPanel() {
           )}
         </CardContent>
       </Card>
+
+      {/* M-Pesa configuration dialog */}
+      <Dialog open={!!mpesaBusiness} onOpenChange={(o) => !o && setMpesaBusiness(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <Smartphone className="h-5 w-5 text-primary" />
+              <DialogTitle>M-Pesa Daraja — {mpesaBusiness?.name}</DialogTitle>
+            </div>
+            <DialogDescription>
+              Configure Safaricom Daraja credentials for STK Push payments.
+            </DialogDescription>
+          </DialogHeader>
+          {mpesaLoading ? (
+            <div className="flex items-center justify-center p-8 text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading…
+            </div>
+          ) : (
+            <form onSubmit={saveMpesa} className="space-y-3">
+              <div className="flex items-center justify-between rounded-md border bg-muted/30 p-3">
+                <div>
+                  <Label className="text-sm">Enable M-Pesa</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Allow this business to accept M-Pesa payments at POS.
+                  </p>
+                </div>
+                <Switch
+                  checked={mpesaForm.enabled}
+                  onCheckedChange={(v) => setMpesaForm((f) => ({ ...f, enabled: v }))}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Environment</Label>
+                <Select
+                  value={mpesaForm.environment}
+                  onValueChange={(v) =>
+                    setMpesaForm((f) => ({ ...f, environment: v as "sandbox" | "production" }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sandbox">Sandbox (testing)</SelectItem>
+                    <SelectItem value="production">Production (live)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Business Shortcode / Paybill</Label>
+                  <Input
+                    value={mpesaForm.shortcode}
+                    onChange={(e) => setMpesaForm((f) => ({ ...f, shortcode: e.target.value }))}
+                    placeholder="174379"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Passkey</Label>
+                  <Input
+                    type={showSecrets ? "text" : "password"}
+                    value={mpesaForm.passkey}
+                    onChange={(e) => setMpesaForm((f) => ({ ...f, passkey: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Consumer Key</Label>
+                <Input
+                  type={showSecrets ? "text" : "password"}
+                  value={mpesaForm.consumer_key}
+                  onChange={(e) => setMpesaForm((f) => ({ ...f, consumer_key: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Consumer Secret</Label>
+                <Input
+                  type={showSecrets ? "text" : "password"}
+                  value={mpesaForm.consumer_secret}
+                  onChange={(e) =>
+                    setMpesaForm((f) => ({ ...f, consumer_secret: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Callback URL</Label>
+                <Input
+                  value={mpesaForm.callback_url}
+                  onChange={(e) => setMpesaForm((f) => ({ ...f, callback_url: e.target.value }))}
+                  placeholder="https://your-domain/api/public/mpesa-callback"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Safaricom will POST payment results here. Must be publicly reachable.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setShowSecrets((v) => !v)}
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  {showSecrets ? (
+                    <>
+                      <EyeOff className="h-3.5 w-3.5" /> Hide secrets
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="h-3.5 w-3.5" /> Show secrets
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setMpesaBusiness(null)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={mpesaSaving}>
+                  {mpesaSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Save config
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
