@@ -44,9 +44,12 @@ const blank = {
   id: undefined as string | undefined,
   name: "",
   sku: "",
+  barcode: "",
   category: "Tools",
   unit: "piece",
   price: 0,
+  price_wholesale: 0,
+  price_contractor: 0,
   cost: 0,
   stock: 0,
   low_stock_threshold: 5,
@@ -86,9 +89,12 @@ export function HardwareInventory() {
       id: h.id,
       name: h.name,
       sku: h.sku ?? "",
+      barcode: h.barcode ?? "",
       category: h.category ?? "Tools",
       unit: h.unit,
       price: Number(h.price),
+      price_wholesale: Number(h.price_wholesale),
+      price_contractor: Number(h.price_contractor),
       cost: Number(h.cost),
       stock: Number(h.stock),
       low_stock_threshold: Number(h.low_stock_threshold),
@@ -113,9 +119,12 @@ export function HardwareInventory() {
         branch_id: activeBranchId,
         name: form.name.trim(),
         sku: form.sku.trim() || null,
+        barcode: form.barcode.trim() || null,
         category: form.category,
         unit: form.unit,
         price: Number(form.price) || 0,
+        price_wholesale: Number(form.price_wholesale) || 0,
+        price_contractor: Number(form.price_contractor) || 0,
         cost: Number(form.cost) || 0,
         stock: Number(form.stock) || 0,
         low_stock_threshold: Number(form.low_stock_threshold) || 0,
@@ -242,6 +251,14 @@ export function HardwareInventory() {
                 <Input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
               </div>
             </div>
+            <div>
+              <label className="text-xs font-medium">Barcode (scan or type)</label>
+              <Input
+                value={form.barcode}
+                onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+                placeholder="EAN / UPC"
+              />
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium">Category</label>
@@ -264,58 +281,46 @@ export function HardwareInventory() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="text-xs font-medium">Price (KSh)</label>
-                <Input
-                  type="number"
-                  value={form.price}
-                  onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
-                />
+                <label className="text-xs font-medium">Retail (KSh)</label>
+                <Input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} />
               </div>
               <div>
+                <label className="text-xs font-medium">Wholesale</label>
+                <Input type="number" value={form.price_wholesale} onChange={(e) => setForm({ ...form, price_wholesale: Number(e.target.value) })} />
+              </div>
+              <div>
+                <label className="text-xs font-medium">Contractor</label>
+                <Input type="number" value={form.price_contractor} onChange={(e) => setForm({ ...form, price_contractor: Number(e.target.value) })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
                 <label className="text-xs font-medium">Cost (KSh)</label>
-                <Input
-                  type="number"
-                  value={form.cost}
-                  onChange={(e) => setForm({ ...form, cost: Number(e.target.value) })}
-                />
+                <Input type="number" value={form.cost} onChange={(e) => setForm({ ...form, cost: Number(e.target.value) })} />
               </div>
               <div>
                 <label className="text-xs font-medium">Stock</label>
-                <Input
-                  type="number"
-                  value={form.stock}
-                  onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })}
-                />
+                <Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })} />
+              </div>
+              <div>
+                <label className="text-xs font-medium">Low-stock</label>
+                <Input type="number" value={form.low_stock_threshold} onChange={(e) => setForm({ ...form, low_stock_threshold: Number(e.target.value) })} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium">Low-stock threshold</label>
-                <Input
-                  type="number"
-                  value={form.low_stock_threshold}
-                  onChange={(e) =>
-                    setForm({ ...form, low_stock_threshold: Number(e.target.value) })
-                  }
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium">Supplier</label>
-                <Select
-                  value={form.supplier_id ?? "none"}
-                  onValueChange={(v) =>
-                    setForm({ ...form, supplier_id: v === "none" ? null : v })
-                  }
-                >
-                  <SelectTrigger><SelectValue placeholder="Select supplier" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— none —</SelectItem>
-                    {suppliers.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div>
+              <label className="text-xs font-medium">Supplier</label>
+              <Select
+                value={form.supplier_id ?? "none"}
+                onValueChange={(v) => setForm({ ...form, supplier_id: v === "none" ? null : v })}
+              >
+                <SelectTrigger><SelectValue placeholder="Select supplier" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— none —</SelectItem>
+                  {suppliers.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>

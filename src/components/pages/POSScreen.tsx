@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,6 +16,8 @@ import {
   CreditCard,
   HardHat,
   Loader2,
+  FileText,
+  Split,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useAuth } from "@/lib/auth-context";
@@ -40,11 +42,14 @@ import {
   useTimber,
   useCustomers,
   recordSale,
+  createQuotation,
   formatKsh,
   pollMpesaStatus,
+  priceForTier,
   type CloudHardware,
   type CloudTimber,
   type CloudSaleItem,
+  type PriceTier,
 } from "@/lib/cloud-store";
 import { callWithAuth } from "@/lib/server-fn-auth";
 import { initiateMpesaStk, linkMpesaToSale } from "@/server/mpesa.functions";
@@ -76,6 +81,20 @@ export function POSScreen() {
   const [mpesaOpen, setMpesaOpen] = useState(false);
   const [mpesaStatus, setMpesaStatus] = useState<string>("");
   const [mpesaBusy, setMpesaBusy] = useState(false);
+  const [splitOpen, setSplitOpen] = useState(false);
+  const [splitCash, setSplitCash] = useState(0);
+  const [splitMpesa, setSplitMpesa] = useState(0);
+  const [splitMpesaRef, setSplitMpesaRef] = useState("");
+  const [splitCard, setSplitCard] = useState(0);
+  const [splitCredit, setSplitCredit] = useState(0);
+  const [quoteOpen, setQuoteOpen] = useState(false);
+  const [quoteValid, setQuoteValid] = useState("");
+  const [quoteNotes, setQuoteNotes] = useState("");
+  const [quoteBusy, setQuoteBusy] = useState(false);
+
+  // Customer-driven price tier (retail / wholesale / contractor)
+  const customerTier: PriceTier =
+    (customers.find((c) => c.id === activeCustomerId)?.price_tier as PriceTier) ?? "retail";
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -108,12 +127,13 @@ export function POSScreen() {
   const total = subtotal - discount;
 
   function addHardwareItem(h: CloudHardware) {
+    const unit = priceForTier(h, customerTier);
     setCart((prev) => {
       const existing = prev.find((c) => c.kind === "hardware" && c.product_id === h.id);
       if (existing) {
         return prev.map((c) =>
           c.lineId === existing.lineId
-            ? { ...c, quantity: c.quantity + 1, total: c.unit_price * (c.quantity + 1) }
+            ? { ...c, quantity: c.quantity + 1, unit_price: unit, total: unit * (c.quantity + 1) }
             : c,
         );
       }
@@ -126,13 +146,39 @@ export function POSScreen() {
           name: h.name,
           description: h.sku,
           quantity: 1,
-          unit_price: Number(h.price),
+          unit_price: unit,
           unit_label: h.unit,
-          total: Number(h.price),
+          total: unit,
         },
       ];
     });
   }
+
+  // Barcode scanner: capture rapid keystrokes ending with Enter.
+  const scanBufRef = useRef<{ buf: string; last: number }>({ buf: "", last: 0 });
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+      const now = Date.now();
+      if (now - scanBufRef.current.last > 80) scanBufRef.current.buf = "";
+      scanBufRef.current.last = now;
+      if (e.key === "Enter") {
+        const code = scanBufRef.current.buf.trim();
+        scanBufRef.current.buf = "";
+        if (code.length >= 4) {
+          const hit = hardware.find((h) => h.barcode === code || h.sku === code);
+          if (hit) addHardwareItem(hit);
+          else toast.error(`No product for code ${code}`);
+        }
+        return;
+      }
+      if (e.key.length === 1) scanBufRef.current.buf += e.key;
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hardware, customerTier]);
 
   function addTimberLine(line: {
     productId: string;
@@ -179,9 +225,10 @@ export function POSScreen() {
   }
 
   async function finalizeSale(
-    method: "cash" | "card" | "mpesa" | "credit",
+    method: "cash" | "card" | "mpesa" | "credit" | "split",
     paymentRef?: string | null,
     mpesaTxId?: string | null,
+    payments?: { method: string; amount: number; reference?: string | null; mpesa_transaction_id?: string | null }[],
   ) {
     if (!activeBusinessId || !activeBranchId) {
       toast.error("Select branch first");
@@ -207,6 +254,7 @@ export function POSScreen() {
         payment_ref: paymentRef ?? null,
         mpesa_transaction_id: mpesaTxId ?? null,
         items: cart.map(({ lineId: _l, ...rest }) => rest),
+        payments,
         created_by: user?.id ?? null,
       });
       setLastReceipt(sale.receipt_no ?? sale.id);
@@ -283,6 +331,57 @@ export function POSScreen() {
       setMpesaStatus("");
     } finally {
       setMpesaBusy(false);
+    }
+  }
+
+  async function finalizeSplit() {
+    const sum = splitCash + splitMpesa + splitCard + splitCredit;
+    if (Math.abs(sum - total) > 0.5) {
+      toast.error(`Payments (${formatKsh(sum)}) must equal total (${formatKsh(total)})`);
+      return;
+    }
+    if (splitCredit > 0 && (!customer || customer.id === "walk-in")) {
+      toast.error("Select a contractor for credit portion");
+      return;
+    }
+    const payments = [
+      splitCash > 0 && { method: "cash", amount: splitCash },
+      splitMpesa > 0 && { method: "mpesa", amount: splitMpesa, reference: splitMpesaRef || null },
+      splitCard > 0 && { method: "card", amount: splitCard },
+      splitCredit > 0 && { method: "credit", amount: splitCredit },
+    ].filter(Boolean) as { method: string; amount: number; reference?: string | null }[];
+    await finalizeSale("split", null, null, payments);
+    setSplitOpen(false);
+    setSplitCash(0); setSplitMpesa(0); setSplitCard(0); setSplitCredit(0); setSplitMpesaRef("");
+  }
+
+  async function saveQuote() {
+    if (!activeBusinessId || !activeBranchId) { toast.error("Select branch first"); return; }
+    if (cart.length === 0) return;
+    setQuoteBusy(true);
+    try {
+      const q = await createQuotation({
+        business_id: activeBusinessId,
+        branch_id: activeBranchId,
+        customer_id: customer ? customer.id : null,
+        customer_name: customer ? customer.name : "Walk-in",
+        customer_phone: customer?.phone ?? null,
+        subtotal,
+        discount,
+        total,
+        valid_until: quoteValid || null,
+        notes: quoteNotes || null,
+        items: cart.map(({ lineId: _l, ...rest }) => rest),
+        created_by: user?.id ?? null,
+      });
+      toast.success(`Quote ${q.quote_no} saved`);
+      setQuoteOpen(false);
+      setQuoteValid(""); setQuoteNotes("");
+      clearCart();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setQuoteBusy(false);
     }
   }
 
@@ -386,9 +485,14 @@ export function POSScreen() {
           <span>Total</span>
           <span>{formatKsh(total)}</span>
         </div>
-        <Button className="w-full h-12 text-base font-bold" disabled={cart.length === 0} onClick={() => setPayOpen(true)}>
-          Charge {formatKsh(total)}
-        </Button>
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="outline" className="h-12" disabled={cart.length === 0} onClick={() => setQuoteOpen(true)}>
+            <FileText className="h-4 w-4 mr-1" /> Quote
+          </Button>
+          <Button className="h-12 text-base font-bold" disabled={cart.length === 0} onClick={() => setPayOpen(true)}>
+            Charge
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -513,6 +617,9 @@ export function POSScreen() {
             <Button size="lg" variant="outline" className="h-20 flex-col" onClick={() => finalizeSale("credit")} disabled={!customer || customer.type !== "contractor"}>
               <HardHat className="h-6 w-6 mb-1" /> Credit
             </Button>
+            <Button size="lg" variant="outline" className="h-20 flex-col col-span-2" onClick={() => { setPayOpen(false); setSplitCash(total); setSplitOpen(true); }}>
+              <Split className="h-6 w-6 mb-1" /> Split payment
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -568,6 +675,60 @@ export function POSScreen() {
           </div>
           <DialogFooter>
             <Button onClick={() => setConfirmOpen(false)} className="w-full">Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Split payment dialog */}
+      <Dialog open={splitOpen} onOpenChange={setSplitOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Split payment</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            <div className="text-center text-2xl font-bold">{formatKsh(total)}</div>
+            {[
+              ["Cash", splitCash, setSplitCash],
+              ["M-Pesa", splitMpesa, setSplitMpesa],
+              ["Card", splitCard, setSplitCard],
+              ["Credit", splitCredit, setSplitCredit],
+            ].map(([label, val, set]) => (
+              <div key={label as string} className="flex items-center gap-2">
+                <label className="text-xs font-medium w-20">{label as string}</label>
+                <Input type="number" value={val as number} onChange={(e) => (set as (n: number) => void)(Number(e.target.value) || 0)} />
+              </div>
+            ))}
+            {splitMpesa > 0 && (
+              <Input placeholder="M-Pesa reference" value={splitMpesaRef} onChange={(e) => setSplitMpesaRef(e.target.value)} />
+            )}
+            <div className="text-xs text-muted-foreground">
+              Sum: {formatKsh(splitCash + splitMpesa + splitCard + splitCredit)} / {formatKsh(total)}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSplitOpen(false)}>Cancel</Button>
+            <Button onClick={finalizeSplit}>Complete sale</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quote dialog */}
+      <Dialog open={quoteOpen} onOpenChange={setQuoteOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Save as quotation</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            <div className="text-center text-2xl font-bold">{formatKsh(total)}</div>
+            <div>
+              <label className="text-xs font-medium">Valid until</label>
+              <Input type="date" value={quoteValid} onChange={(e) => setQuoteValid(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs font-medium">Notes</label>
+              <Input value={quoteNotes} onChange={(e) => setQuoteNotes(e.target.value)} placeholder="Terms, delivery..." />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQuoteOpen(false)}>Cancel</Button>
+            <Button onClick={saveQuote} disabled={quoteBusy}>
+              {quoteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save quote"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
