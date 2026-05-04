@@ -678,6 +678,60 @@ export function POSScreen() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Split payment dialog */}
+      <Dialog open={splitOpen} onOpenChange={setSplitOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Split payment</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            <div className="text-center text-2xl font-bold">{formatKsh(total)}</div>
+            {[
+              ["Cash", splitCash, setSplitCash],
+              ["M-Pesa", splitMpesa, setSplitMpesa],
+              ["Card", splitCard, setSplitCard],
+              ["Credit", splitCredit, setSplitCredit],
+            ].map(([label, val, set]) => (
+              <div key={label as string} className="flex items-center gap-2">
+                <label className="text-xs font-medium w-20">{label as string}</label>
+                <Input type="number" value={val as number} onChange={(e) => (set as (n: number) => void)(Number(e.target.value) || 0)} />
+              </div>
+            ))}
+            {splitMpesa > 0 && (
+              <Input placeholder="M-Pesa reference" value={splitMpesaRef} onChange={(e) => setSplitMpesaRef(e.target.value)} />
+            )}
+            <div className="text-xs text-muted-foreground">
+              Sum: {formatKsh(splitCash + splitMpesa + splitCard + splitCredit)} / {formatKsh(total)}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSplitOpen(false)}>Cancel</Button>
+            <Button onClick={finalizeSplit}>Complete sale</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quote dialog */}
+      <Dialog open={quoteOpen} onOpenChange={setQuoteOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Save as quotation</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            <div className="text-center text-2xl font-bold">{formatKsh(total)}</div>
+            <div>
+              <label className="text-xs font-medium">Valid until</label>
+              <Input type="date" value={quoteValid} onChange={(e) => setQuoteValid(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs font-medium">Notes</label>
+              <Input value={quoteNotes} onChange={(e) => setQuoteNotes(e.target.value)} placeholder="Terms, delivery..." />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQuoteOpen(false)}>Cancel</Button>
+            <Button onClick={saveQuote} disabled={quoteBusy}>
+              {quoteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save quote"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
