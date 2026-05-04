@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,6 +16,8 @@ import {
   CreditCard,
   HardHat,
   Loader2,
+  FileText,
+  Split,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useAuth } from "@/lib/auth-context";
@@ -40,11 +42,14 @@ import {
   useTimber,
   useCustomers,
   recordSale,
+  createQuotation,
   formatKsh,
   pollMpesaStatus,
+  priceForTier,
   type CloudHardware,
   type CloudTimber,
   type CloudSaleItem,
+  type PriceTier,
 } from "@/lib/cloud-store";
 import { callWithAuth } from "@/lib/server-fn-auth";
 import { initiateMpesaStk, linkMpesaToSale } from "@/server/mpesa.functions";
