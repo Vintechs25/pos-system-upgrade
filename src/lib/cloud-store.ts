@@ -598,3 +598,178 @@ export async function pollMpesaStatus(checkoutRequestId: string) {
 
 export const formatKsh = (n: number) =>
   `KSh ${n.toLocaleString("en-KE", { maximumFractionDigits: 2 })}`;
+
+// =========================================================================
+// Quotations
+// =========================================================================
+export interface CloudQuotation {
+  id: string;
+  business_id: string;
+  branch_id: string;
+  quote_no: string | null;
+  customer_id: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
+  subtotal: number;
+  discount: number;
+  total: number;
+  status: "open" | "converted" | "expired" | "cancelled";
+  valid_until: string | null;
+  notes: string | null;
+  converted_sale_id: string | null;
+  created_at: string;
+}
+
+export interface CloudQuotationItem {
+  id?: string;
+  quotation_id?: string;
+  product_id: string | null;
+  kind: "hardware" | "timber";
+  name: string;
+  description: string | null;
+  quantity: number;
+  unit_price: number;
+  unit_label: string | null;
+  total: number;
+  meta?: Record<string, unknown> | null;
+}
+
+export function useQuotations(branchId: string | null) {
+  const { activeBusinessId } = useAuth();
+  const [items, setItems] = useState<CloudQuotation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const load = useCallback(async () => {
+    if (!activeBusinessId) { setItems([]); setLoading(false); return; }
+    setLoading(true);
+    let q = supabase
+      .from("quotations")
+      .select("*")
+      .eq("business_id", activeBusinessId)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (branchId) q = q.eq("branch_id", branchId);
+    const { data } = await q;
+    setItems((data as CloudQuotation[]) ?? []);
+    setLoading(false);
+  }, [activeBusinessId, branchId]);
+  useEffect(() => { load(); }, [load]);
+  return { items, loading, reload: load };
+}
+
+export async function createQuotation(args: {
+  business_id: string;
+  branch_id: string;
+  customer_id: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
+  subtotal: number;
+  discount: number;
+  total: number;
+  valid_until: string | null;
+  notes: string | null;
+  items: CloudQuotationItem[];
+  created_by?: string | null;
+}): Promise<CloudQuotation> {
+  const quoteNo = `Q-${Date.now().toString(36).toUpperCase()}`;
+  const { data: q, error } = await supabase
+    .from("quotations")
+    .insert({
+      business_id: args.business_id,
+      branch_id: args.branch_id,
+      quote_no: quoteNo,
+      customer_id: args.customer_id,
+      customer_name: args.customer_name,
+      customer_phone: args.customer_phone,
+      subtotal: args.subtotal,
+      discount: args.discount,
+      total: args.total,
+      valid_until: args.valid_until,
+      notes: args.notes,
+      status: "open",
+      created_by: args.created_by ?? null,
+    })
+    .select()
+    .single();
+  if (error || !q) throw error ?? new Error("Failed to save quote");
+  if (args.items.length) {
+    const { error: ie } = await supabase.from("quotation_items").insert(
+      args.items.map((i) => ({
+        quotation_id: q.id,
+        product_id: i.product_id,
+        kind: i.kind,
+        name: i.name,
+        description: i.description,
+        quantity: i.quantity,
+        unit_price: i.unit_price,
+        unit_label: i.unit_label,
+        total: i.total,
+        meta: (i.meta ?? null) as never,
+      })),
+    );
+    if (ie) throw ie;
+  }
+  return q as CloudQuotation;
+}
+
+export async function fetchQuotationItems(quotationId: string): Promise<CloudQuotationItem[]> {
+  const { data } = await supabase
+    .from("quotation_items")
+    .select("*")
+    .eq("quotation_id", quotationId);
+  return (data as CloudQuotationItem[]) ?? [];
+}
+
+export async function markQuotationConverted(quotationId: string, saleId: string) {
+  await supabase.from("quotations").update({ status: "converted", converted_sale_id: saleId }).eq("id", quotationId);
+}
+
+export async function deleteQuotation(id: string) {
+  const { error } = await supabase.from("quotations").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// =========================================================================
+// Timber remnants
+// =========================================================================
+export interface CloudRemnant {
+  id: string;
+  business_id: string;
+  branch_id: string;
+  parent_product_id: string | null;
+  species: string;
+  thickness: number;
+  width: number;
+  length: number;
+  length_unit: string;
+  price_per_unit: number;
+  is_sold: boolean;
+  notes: string | null;
+}
+
+export function useRemnants(branchId: string | null) {
+  const [items, setItems] = useState<CloudRemnant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const load = useCallback(async () => {
+    if (!branchId) { setItems([]); setLoading(false); return; }
+    setLoading(true);
+    const { data } = await supabase
+      .from("timber_remnants")
+      .select("*")
+      .eq("branch_id", branchId)
+      .eq("is_sold", false)
+      .order("created_at", { ascending: false });
+    setItems((data as CloudRemnant[]) ?? []);
+    setLoading(false);
+  }, [branchId]);
+  useEffect(() => { load(); }, [load]);
+  return { items, loading, reload: load };
+}
+
+export async function addRemnant(values: Omit<CloudRemnant, "id" | "is_sold"> & { source_sale_id?: string | null }) {
+  const { error } = await supabase.from("timber_remnants").insert({ ...values, is_sold: false });
+  if (error) throw error;
+}
+
+export async function markRemnantSold(id: string, saleId: string) {
+  await supabase.from("timber_remnants").update({ is_sold: true, source_sale_id: saleId }).eq("id", id);
+}
