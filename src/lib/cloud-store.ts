@@ -472,6 +472,23 @@ export async function recordSale(args: {
     if (itemErr) throw itemErr;
   }
 
+  // Split / multi-tender payment lines
+  if (args.payments && args.payments.length > 0) {
+    const payRows = args.payments
+      .filter((p) => Number(p.amount) > 0)
+      .map((p) => ({
+        sale_id: sale.id,
+        method: p.method,
+        amount: Number(p.amount),
+        reference: p.reference ?? null,
+        mpesa_transaction_id: p.mpesa_transaction_id ?? null,
+      }));
+    if (payRows.length) {
+      const { error: payErr } = await supabase.from("sale_payments").insert(payRows);
+      if (payErr) throw payErr;
+    }
+  }
+
   // Decrement stock client-side (RLS allows members to update their inventory).
   for (const item of args.items) {
     if (!item.product_id) continue;
