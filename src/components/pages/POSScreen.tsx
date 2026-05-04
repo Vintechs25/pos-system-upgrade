@@ -127,12 +127,13 @@ export function POSScreen() {
   const total = subtotal - discount;
 
   function addHardwareItem(h: CloudHardware) {
+    const unit = priceForTier(h, customerTier);
     setCart((prev) => {
       const existing = prev.find((c) => c.kind === "hardware" && c.product_id === h.id);
       if (existing) {
         return prev.map((c) =>
           c.lineId === existing.lineId
-            ? { ...c, quantity: c.quantity + 1, total: c.unit_price * (c.quantity + 1) }
+            ? { ...c, quantity: c.quantity + 1, unit_price: unit, total: unit * (c.quantity + 1) }
             : c,
         );
       }
@@ -145,13 +146,39 @@ export function POSScreen() {
           name: h.name,
           description: h.sku,
           quantity: 1,
-          unit_price: Number(h.price),
+          unit_price: unit,
           unit_label: h.unit,
-          total: Number(h.price),
+          total: unit,
         },
       ];
     });
   }
+
+  // Barcode scanner: capture rapid keystrokes ending with Enter.
+  const scanBufRef = useRef<{ buf: string; last: number }>({ buf: "", last: 0 });
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+      const now = Date.now();
+      if (now - scanBufRef.current.last > 80) scanBufRef.current.buf = "";
+      scanBufRef.current.last = now;
+      if (e.key === "Enter") {
+        const code = scanBufRef.current.buf.trim();
+        scanBufRef.current.buf = "";
+        if (code.length >= 4) {
+          const hit = hardware.find((h) => h.barcode === code || h.sku === code);
+          if (hit) addHardwareItem(hit);
+          else toast.error(`No product for code ${code}`);
+        }
+        return;
+      }
+      if (e.key.length === 1) scanBufRef.current.buf += e.key;
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hardware, customerTier]);
 
   function addTimberLine(line: {
     productId: string;
