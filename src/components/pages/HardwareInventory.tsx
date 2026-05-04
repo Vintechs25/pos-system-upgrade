@@ -307,34 +307,20 @@ export function HardwareInventory() {
                 <Input type="number" value={form.low_stock_threshold} onChange={(e) => setForm({ ...form, low_stock_threshold: Number(e.target.value) })} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium">Low-stock threshold</label>
-                <Input
-                  type="number"
-                  value={form.low_stock_threshold}
-                  onChange={(e) =>
-                    setForm({ ...form, low_stock_threshold: Number(e.target.value) })
-                  }
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium">Supplier</label>
-                <Select
-                  value={form.supplier_id ?? "none"}
-                  onValueChange={(v) =>
-                    setForm({ ...form, supplier_id: v === "none" ? null : v })
-                  }
-                >
-                  <SelectTrigger><SelectValue placeholder="Select supplier" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— none —</SelectItem>
-                    {suppliers.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div>
+              <label className="text-xs font-medium">Supplier</label>
+              <Select
+                value={form.supplier_id ?? "none"}
+                onValueChange={(v) => setForm({ ...form, supplier_id: v === "none" ? null : v })}
+              >
+                <SelectTrigger><SelectValue placeholder="Select supplier" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— none —</SelectItem>
+                  {suppliers.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
