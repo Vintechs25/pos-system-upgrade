@@ -485,9 +485,14 @@ export function POSScreen() {
           <span>Total</span>
           <span>{formatKsh(total)}</span>
         </div>
-        <Button className="w-full h-12 text-base font-bold" disabled={cart.length === 0} onClick={() => setPayOpen(true)}>
-          Charge {formatKsh(total)}
-        </Button>
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="outline" className="h-12" disabled={cart.length === 0} onClick={() => setQuoteOpen(true)}>
+            <FileText className="h-4 w-4 mr-1" /> Quote
+          </Button>
+          <Button className="h-12 text-base font-bold" disabled={cart.length === 0} onClick={() => setPayOpen(true)}>
+            Charge
+          </Button>
+        </div>
       </div>
     </div>
   );
