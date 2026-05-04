@@ -143,6 +143,7 @@ export type Database = {
           loyalty_discount_pct: number
           name: string
           phone: string | null
+          price_tier: string
           type: string
           updated_at: string
         }
@@ -155,6 +156,7 @@ export type Database = {
           loyalty_discount_pct?: number
           name: string
           phone?: string | null
+          price_tier?: string
           type?: string
           updated_at?: string
         }
@@ -167,6 +169,7 @@ export type Database = {
           loyalty_discount_pct?: number
           name?: string
           phone?: string | null
+          price_tier?: string
           type?: string
           updated_at?: string
         }
@@ -182,6 +185,7 @@ export type Database = {
       }
       hardware_products: {
         Row: {
+          barcode: string | null
           branch_id: string
           business_id: string
           category: string | null
@@ -192,6 +196,8 @@ export type Database = {
           low_stock_threshold: number
           name: string
           price: number
+          price_contractor: number
+          price_wholesale: number
           sku: string | null
           stock: number
           supplier: string | null
@@ -200,6 +206,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          barcode?: string | null
           branch_id: string
           business_id: string
           category?: string | null
@@ -210,6 +217,8 @@ export type Database = {
           low_stock_threshold?: number
           name: string
           price?: number
+          price_contractor?: number
+          price_wholesale?: number
           sku?: string | null
           stock?: number
           supplier?: string | null
@@ -218,6 +227,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          barcode?: string | null
           branch_id?: string
           business_id?: string
           category?: string | null
@@ -228,6 +238,8 @@ export type Database = {
           low_stock_threshold?: number
           name?: string
           price?: number
+          price_contractor?: number
+          price_wholesale?: number
           sku?: string | null
           stock?: number
           supplier?: string | null
@@ -385,6 +397,119 @@ export type Database = {
         }
         Relationships: []
       }
+      quotation_items: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          kind: string
+          meta: Json | null
+          name: string
+          product_id: string | null
+          quantity: number
+          quotation_id: string
+          total: number
+          unit_label: string | null
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          kind: string
+          meta?: Json | null
+          name: string
+          product_id?: string | null
+          quantity?: number
+          quotation_id: string
+          total?: number
+          unit_label?: string | null
+          unit_price?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          kind?: string
+          meta?: Json | null
+          name?: string
+          product_id?: string | null
+          quantity?: number
+          quotation_id?: string
+          total?: number
+          unit_label?: string | null
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotation_items_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "quotations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotations: {
+        Row: {
+          branch_id: string
+          business_id: string
+          converted_sale_id: string | null
+          created_at: string
+          created_by: string | null
+          customer_id: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          discount: number
+          id: string
+          notes: string | null
+          quote_no: string | null
+          status: string
+          subtotal: number
+          total: number
+          updated_at: string
+          valid_until: string | null
+        }
+        Insert: {
+          branch_id: string
+          business_id: string
+          converted_sale_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          discount?: number
+          id?: string
+          notes?: string | null
+          quote_no?: string | null
+          status?: string
+          subtotal?: number
+          total?: number
+          updated_at?: string
+          valid_until?: string | null
+        }
+        Update: {
+          branch_id?: string
+          business_id?: string
+          converted_sale_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          discount?: number
+          id?: string
+          notes?: string | null
+          quote_no?: string | null
+          status?: string
+          subtotal?: number
+          total?: number
+          updated_at?: string
+          valid_until?: string | null
+        }
+        Relationships: []
+      }
       sale_items: {
         Row: {
           created_at: string
@@ -431,6 +556,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "sale_items_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sale_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          method: string
+          mpesa_transaction_id: string | null
+          reference: string | null
+          sale_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          id?: string
+          method: string
+          mpesa_transaction_id?: string | null
+          reference?: string | null
+          sale_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          method?: string
+          mpesa_transaction_id?: string | null
+          reference?: string | null
+          sale_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_payments_sale_id_fkey"
             columns: ["sale_id"]
             isOneToOne: false
             referencedRelation: "sales"
@@ -573,8 +736,10 @@ export type Database = {
           length_unit: string
           low_stock_threshold: number
           pieces: number
+          price_contractor: number
           price_per_unit: number
           price_unit: string
+          price_wholesale: number
           species: string
           thickness: number
           updated_at: string
@@ -592,8 +757,10 @@ export type Database = {
           length_unit?: string
           low_stock_threshold?: number
           pieces?: number
+          price_contractor?: number
           price_per_unit?: number
           price_unit?: string
+          price_wholesale?: number
           species: string
           thickness?: number
           updated_at?: string
@@ -611,8 +778,10 @@ export type Database = {
           length_unit?: string
           low_stock_threshold?: number
           pieces?: number
+          price_contractor?: number
           price_per_unit?: number
           price_unit?: string
+          price_wholesale?: number
           species?: string
           thickness?: number
           updated_at?: string
@@ -634,6 +803,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      timber_remnants: {
+        Row: {
+          branch_id: string
+          business_id: string
+          created_at: string
+          id: string
+          is_sold: boolean
+          length: number
+          length_unit: string
+          notes: string | null
+          parent_product_id: string | null
+          price_per_unit: number
+          source_sale_id: string | null
+          species: string
+          thickness: number
+          updated_at: string
+          width: number
+        }
+        Insert: {
+          branch_id: string
+          business_id: string
+          created_at?: string
+          id?: string
+          is_sold?: boolean
+          length?: number
+          length_unit?: string
+          notes?: string | null
+          parent_product_id?: string | null
+          price_per_unit?: number
+          source_sale_id?: string | null
+          species: string
+          thickness?: number
+          updated_at?: string
+          width?: number
+        }
+        Update: {
+          branch_id?: string
+          business_id?: string
+          created_at?: string
+          id?: string
+          is_sold?: boolean
+          length?: number
+          length_unit?: string
+          notes?: string | null
+          parent_product_id?: string | null
+          price_per_unit?: number
+          source_sale_id?: string | null
+          species?: string
+          thickness?: number
+          updated_at?: string
+          width?: number
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
