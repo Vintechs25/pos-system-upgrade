@@ -225,9 +225,10 @@ export function POSScreen() {
   }
 
   async function finalizeSale(
-    method: "cash" | "card" | "mpesa" | "credit",
+    method: "cash" | "card" | "mpesa" | "credit" | "split",
     paymentRef?: string | null,
     mpesaTxId?: string | null,
+    payments?: { method: string; amount: number; reference?: string | null; mpesa_transaction_id?: string | null }[],
   ) {
     if (!activeBusinessId || !activeBranchId) {
       toast.error("Select branch first");
@@ -253,6 +254,7 @@ export function POSScreen() {
         payment_ref: paymentRef ?? null,
         mpesa_transaction_id: mpesaTxId ?? null,
         items: cart.map(({ lineId: _l, ...rest }) => rest),
+        payments,
         created_by: user?.id ?? null,
       });
       setLastReceipt(sale.receipt_no ?? sale.id);
