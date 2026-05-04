@@ -617,6 +617,9 @@ export function POSScreen() {
             <Button size="lg" variant="outline" className="h-20 flex-col" onClick={() => finalizeSale("credit")} disabled={!customer || customer.type !== "contractor"}>
               <HardHat className="h-6 w-6 mb-1" /> Credit
             </Button>
+            <Button size="lg" variant="outline" className="h-20 flex-col col-span-2" onClick={() => { setPayOpen(false); setSplitCash(total); setSplitOpen(true); }}>
+              <Split className="h-6 w-6 mb-1" /> Split payment
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
