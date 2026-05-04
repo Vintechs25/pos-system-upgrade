@@ -39,15 +39,26 @@ export interface CloudHardware {
   branch_id: string;
   name: string;
   sku: string | null;
+  barcode: string | null;
   category: string | null;
   unit: string;
   price: number;
+  price_wholesale: number;
+  price_contractor: number;
   cost: number;
   stock: number;
   low_stock_threshold: number;
   supplier: string | null;
   supplier_id: string | null;
   is_active: boolean;
+}
+
+export type PriceTier = "retail" | "wholesale" | "contractor";
+
+export function priceForTier(h: { price: number; price_wholesale: number; price_contractor: number }, tier: PriceTier): number {
+  if (tier === "wholesale" && Number(h.price_wholesale) > 0) return Number(h.price_wholesale);
+  if (tier === "contractor" && Number(h.price_contractor) > 0) return Number(h.price_contractor);
+  return Number(h.price);
 }
 
 export interface CloudTimber {
@@ -74,6 +85,7 @@ export interface CloudCustomer {
   name: string;
   phone: string | null;
   type: string;
+  price_tier: PriceTier;
   credit_limit: number;
   balance: number;
   loyalty_discount_pct: number;
