@@ -40,6 +40,7 @@ const blank = {
   name: "",
   type: "contractor" as "walk-in" | "contractor",
   phone: "",
+  price_tier: "retail" as "retail" | "wholesale" | "contractor",
   credit_limit: 50000,
   loyalty_discount_pct: 0,
 };
@@ -63,6 +64,7 @@ export function CustomersPage() {
       name: c.name,
       type: (c.type as "walk-in" | "contractor") ?? "walk-in",
       phone: c.phone ?? "",
+      price_tier: (c.price_tier as "retail" | "wholesale" | "contractor") ?? "retail",
       credit_limit: Number(c.credit_limit),
       loyalty_discount_pct: Number(c.loyalty_discount_pct),
     });
@@ -85,6 +87,7 @@ export function CustomersPage() {
         name: form.name.trim(),
         type: form.type,
         phone: form.phone.trim() || null,
+        price_tier: form.price_tier,
         credit_limit: form.credit_limit,
         loyalty_discount_pct: form.loyalty_discount_pct,
       });
@@ -202,13 +205,24 @@ export function CustomersPage() {
                 <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs font-medium">Price tier</label>
+                <Select value={form.price_tier} onValueChange={(v) => setForm({ ...form, price_tier: v as "retail" | "wholesale" | "contractor" })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="retail">Retail</SelectItem>
+                    <SelectItem value="wholesale">Wholesale</SelectItem>
+                    <SelectItem value="contractor">Contractor</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div>
                 <label className="text-xs font-medium">Credit limit</label>
                 <Input type="number" value={form.credit_limit} onChange={(e) => setForm({ ...form, credit_limit: Number(e.target.value) })} />
               </div>
               <div>
-                <label className="text-xs font-medium">Loyalty discount %</label>
+                <label className="text-xs font-medium">Loyalty %</label>
                 <Input type="number" value={form.loyalty_discount_pct} onChange={(e) => setForm({ ...form, loyalty_discount_pct: Number(e.target.value) })} />
               </div>
             </div>
