@@ -251,6 +251,14 @@ export function HardwareInventory() {
                 <Input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
               </div>
             </div>
+            <div>
+              <label className="text-xs font-medium">Barcode (scan or type)</label>
+              <Input
+                value={form.barcode}
+                onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+                placeholder="EAN / UPC"
+              />
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium">Category</label>
@@ -273,28 +281,30 @@ export function HardwareInventory() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="text-xs font-medium">Price (KSh)</label>
-                <Input
-                  type="number"
-                  value={form.price}
-                  onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
-                />
+                <label className="text-xs font-medium">Retail (KSh)</label>
+                <Input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} />
               </div>
               <div>
+                <label className="text-xs font-medium">Wholesale</label>
+                <Input type="number" value={form.price_wholesale} onChange={(e) => setForm({ ...form, price_wholesale: Number(e.target.value) })} />
+              </div>
+              <div>
+                <label className="text-xs font-medium">Contractor</label>
+                <Input type="number" value={form.price_contractor} onChange={(e) => setForm({ ...form, price_contractor: Number(e.target.value) })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
                 <label className="text-xs font-medium">Cost (KSh)</label>
-                <Input
-                  type="number"
-                  value={form.cost}
-                  onChange={(e) => setForm({ ...form, cost: Number(e.target.value) })}
-                />
+                <Input type="number" value={form.cost} onChange={(e) => setForm({ ...form, cost: Number(e.target.value) })} />
               </div>
               <div>
                 <label className="text-xs font-medium">Stock</label>
-                <Input
-                  type="number"
-                  value={form.stock}
-                  onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })}
-                />
+                <Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })} />
+              </div>
+              <div>
+                <label className="text-xs font-medium">Low-stock</label>
+                <Input type="number" value={form.low_stock_threshold} onChange={(e) => setForm({ ...form, low_stock_threshold: Number(e.target.value) })} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
