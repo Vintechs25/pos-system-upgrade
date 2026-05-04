@@ -422,7 +422,7 @@ export async function recordSale(args: {
   branch_id: string;
   customer_id: string | null;
   customer_name: string | null;
-  payment_method: "cash" | "card" | "mpesa" | "credit";
+  payment_method: "cash" | "card" | "mpesa" | "credit" | "split";
   status: "paid" | "credit" | "pending";
   subtotal: number;
   discount: number;
@@ -430,6 +430,7 @@ export async function recordSale(args: {
   payment_ref?: string | null;
   mpesa_transaction_id?: string | null;
   items: CloudSaleItem[];
+  payments?: { method: string; amount: number; reference?: string | null; mpesa_transaction_id?: string | null }[];
   created_by?: string | null;
 }): Promise<CloudSale> {
   const receiptNo = `R-${Date.now().toString(36).toUpperCase()}`;
