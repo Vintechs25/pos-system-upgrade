@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TimberRouteImport } from './routes/timber'
 import { Route as SuppliersRouteImport } from './routes/suppliers'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as QuotationsRouteImport } from './routes/quotations'
 import { Route as PosRouteImport } from './routes/pos'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as CustomersRouteImport } from './routes/customers'
@@ -34,6 +35,11 @@ const SuppliersRoute = SuppliersRouteImport.update({
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QuotationsRoute = QuotationsRouteImport.update({
+  id: '/quotations',
+  path: '/quotations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PosRoute = PosRouteImport.update({
@@ -85,6 +91,7 @@ export interface FileRoutesByFullPath {
   '/customers': typeof CustomersRoute
   '/inventory': typeof InventoryRoute
   '/pos': typeof PosRoute
+  '/quotations': typeof QuotationsRoute
   '/reports': typeof ReportsRoute
   '/suppliers': typeof SuppliersRoute
   '/timber': typeof TimberRoute
@@ -98,6 +105,7 @@ export interface FileRoutesByTo {
   '/customers': typeof CustomersRoute
   '/inventory': typeof InventoryRoute
   '/pos': typeof PosRoute
+  '/quotations': typeof QuotationsRoute
   '/reports': typeof ReportsRoute
   '/suppliers': typeof SuppliersRoute
   '/timber': typeof TimberRoute
@@ -112,6 +120,7 @@ export interface FileRoutesById {
   '/customers': typeof CustomersRoute
   '/inventory': typeof InventoryRoute
   '/pos': typeof PosRoute
+  '/quotations': typeof QuotationsRoute
   '/reports': typeof ReportsRoute
   '/suppliers': typeof SuppliersRoute
   '/timber': typeof TimberRoute
@@ -127,6 +136,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/inventory'
     | '/pos'
+    | '/quotations'
     | '/reports'
     | '/suppliers'
     | '/timber'
@@ -140,6 +150,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/inventory'
     | '/pos'
+    | '/quotations'
     | '/reports'
     | '/suppliers'
     | '/timber'
@@ -153,6 +164,7 @@ export interface FileRouteTypes {
     | '/customers'
     | '/inventory'
     | '/pos'
+    | '/quotations'
     | '/reports'
     | '/suppliers'
     | '/timber'
@@ -167,6 +179,7 @@ export interface RootRouteChildren {
   CustomersRoute: typeof CustomersRoute
   InventoryRoute: typeof InventoryRoute
   PosRoute: typeof PosRoute
+  QuotationsRoute: typeof QuotationsRoute
   ReportsRoute: typeof ReportsRoute
   SuppliersRoute: typeof SuppliersRoute
   TimberRoute: typeof TimberRoute
@@ -194,6 +207,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quotations': {
+      id: '/quotations'
+      path: '/quotations'
+      fullPath: '/quotations'
+      preLoaderRoute: typeof QuotationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pos': {
@@ -263,6 +283,7 @@ const rootRouteChildren: RootRouteChildren = {
   CustomersRoute: CustomersRoute,
   InventoryRoute: InventoryRoute,
   PosRoute: PosRoute,
+  QuotationsRoute: QuotationsRoute,
   ReportsRoute: ReportsRoute,
   SuppliersRoute: SuppliersRoute,
   TimberRoute: TimberRoute,
