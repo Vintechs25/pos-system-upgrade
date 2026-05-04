@@ -334,6 +334,57 @@ export function POSScreen() {
     }
   }
 
+  async function finalizeSplit() {
+    const sum = splitCash + splitMpesa + splitCard + splitCredit;
+    if (Math.abs(sum - total) > 0.5) {
+      toast.error(`Payments (${formatKsh(sum)}) must equal total (${formatKsh(total)})`);
+      return;
+    }
+    if (splitCredit > 0 && (!customer || customer.id === "walk-in")) {
+      toast.error("Select a contractor for credit portion");
+      return;
+    }
+    const payments = [
+      splitCash > 0 && { method: "cash", amount: splitCash },
+      splitMpesa > 0 && { method: "mpesa", amount: splitMpesa, reference: splitMpesaRef || null },
+      splitCard > 0 && { method: "card", amount: splitCard },
+      splitCredit > 0 && { method: "credit", amount: splitCredit },
+    ].filter(Boolean) as { method: string; amount: number; reference?: string | null }[];
+    await finalizeSale("split", null, null, payments);
+    setSplitOpen(false);
+    setSplitCash(0); setSplitMpesa(0); setSplitCard(0); setSplitCredit(0); setSplitMpesaRef("");
+  }
+
+  async function saveQuote() {
+    if (!activeBusinessId || !activeBranchId) { toast.error("Select branch first"); return; }
+    if (cart.length === 0) return;
+    setQuoteBusy(true);
+    try {
+      const q = await createQuotation({
+        business_id: activeBusinessId,
+        branch_id: activeBranchId,
+        customer_id: customer ? customer.id : null,
+        customer_name: customer ? customer.name : "Walk-in",
+        customer_phone: customer?.phone ?? null,
+        subtotal,
+        discount,
+        total,
+        valid_until: quoteValid || null,
+        notes: quoteNotes || null,
+        items: cart.map(({ lineId: _l, ...rest }) => rest),
+        created_by: user?.id ?? null,
+      });
+      toast.success(`Quote ${q.quote_no} saved`);
+      setQuoteOpen(false);
+      setQuoteValid(""); setQuoteNotes("");
+      clearCart();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setQuoteBusy(false);
+    }
+  }
+
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
 
   const cartPanel = (
