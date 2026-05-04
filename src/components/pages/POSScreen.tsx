@@ -81,6 +81,20 @@ export function POSScreen() {
   const [mpesaOpen, setMpesaOpen] = useState(false);
   const [mpesaStatus, setMpesaStatus] = useState<string>("");
   const [mpesaBusy, setMpesaBusy] = useState(false);
+  const [splitOpen, setSplitOpen] = useState(false);
+  const [splitCash, setSplitCash] = useState(0);
+  const [splitMpesa, setSplitMpesa] = useState(0);
+  const [splitMpesaRef, setSplitMpesaRef] = useState("");
+  const [splitCard, setSplitCard] = useState(0);
+  const [splitCredit, setSplitCredit] = useState(0);
+  const [quoteOpen, setQuoteOpen] = useState(false);
+  const [quoteValid, setQuoteValid] = useState("");
+  const [quoteNotes, setQuoteNotes] = useState("");
+  const [quoteBusy, setQuoteBusy] = useState(false);
+
+  // Customer-driven price tier (retail / wholesale / contractor)
+  const customerTier: PriceTier =
+    (customers.find((c) => c.id === activeCustomerId)?.price_tier as PriceTier) ?? "retail";
 
   const categories = useMemo(() => {
     const set = new Set<string>();
