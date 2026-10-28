@@ -52,7 +52,7 @@ import {
   type PriceTier,
 } from "@/lib/cloud-store";
 import { callWithAuth } from "@/lib/server-fn-auth";
-import { initiateMpesaStk, linkMpesaToSale } from "@/server/mpesa.functions";
+import { initiateMpesaStk, linkMpesaToSale } from "@/lib/mpesa.functions";
 import { toast } from "sonner";
 
 interface CartLine extends CloudSaleItem {
