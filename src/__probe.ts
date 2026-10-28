@@ -1,3 +1,4 @@
 import type { ErrorRouteComponent } from "@tanstack/react-router";
-const bad: ErrorRouteComponent = 42 as never;
-console.log(bad);
+declare const bad: ErrorRouteComponent;
+const n: number = bad;
+console.log(n);
