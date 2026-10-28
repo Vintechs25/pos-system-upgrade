@@ -1,4 +1,4 @@
 import type { ErrorRouteComponent } from "@tanstack/react-router";
-declare const bad: ErrorRouteComponent;
-const n: number = bad;
-console.log(n);
+function C(_p: { error: unknown; reset: () => void }) { return null; }
+const a: ErrorRouteComponent = C;
+console.log(a);
