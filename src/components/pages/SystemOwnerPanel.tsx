@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { provisionBusiness } from "@/server/business-provisioning.functions";
+import { provisionBusiness } from "@/lib/business-provisioning.functions";
 import { callWithAuth } from "@/lib/server-fn-auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
